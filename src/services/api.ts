@@ -6,7 +6,7 @@ export interface CreateOrganRequest {
   donor: string;
   organType: string;
   bloodType: string;
-  tokenURI: string;
+  tokenURI?: string;
 }
 
 export interface TransferRequest {
@@ -19,7 +19,29 @@ export interface TransplantRequest {
   recipient: string;
 }
 
+export interface Organ {
+  tokenId: number;
+  organType: string;
+  bloodType: string;
+  status: string;
+  donor?: string;
+  hospital?: string;
+  recipient?: string;
+  createdAt: string;
+  tokenURI?: string;
+}
+
+export interface AnalyticsData {
+  totalOrgans: number;
+  transplanted?: number;
+  inTransit?: number;
+  activeTransactions?: number;
+  recentActivity: any[];
+  timestamp: string;
+}
+
 export const api = {
+  // Organ management
   createOrgan: async (data: CreateOrganRequest) => {
     const response = await fetch(`${API_BASE_URL}/createOrgan`, {
       method: 'POST',
@@ -44,6 +66,17 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+    return response.json();
+  },
+
+  // Data fetching
+  getOrgans: async (): Promise<Organ[]> => {
+    const response = await fetch(`${API_BASE_URL}/organs`);
+    return response.json();
+  },
+
+  getAnalytics: async (): Promise<AnalyticsData> => {
+    const response = await fetch(`${API_BASE_URL}/analytics`);
     return response.json();
   },
 };

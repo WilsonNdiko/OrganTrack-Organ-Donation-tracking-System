@@ -1,11 +1,13 @@
 
-// For Hedera testnet deployment
+// Hardhat config compatible with OpenZeppelin v5
 export default {
-  solidity: "0.8.19",
-  networks: {
-    hedera: {
-      url: process.env.HEDERA_TESTNET_RPC_URL,
-      accounts: [process.env.HEDERA_PRIVATE_KEY],
-    },
+  solidity: {
+    version: "0.8.20",
+    settings: {
+      optimizer: {
+        enabled: true,
+        runs: 200
+      }
+    }
   },
 };

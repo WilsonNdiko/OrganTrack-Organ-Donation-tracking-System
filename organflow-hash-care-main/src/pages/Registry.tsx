@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Heart, Filter, Plus, Send, CheckCircle, Inbox, MapPin } from "lucide-react";
+import { Heart, Filter, Plus, Send, CheckCircle, Inbox, MapPin, RefreshCw } from "lucide-react";
 import StatusBadge from "@/components/StatusBadge";
 import HeartbeatDivider from "@/components/HeartbeatDivider";
 import {
@@ -32,19 +32,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { api, Organ as BackendOrgan } from "../../../src/services/api";
 
-type OrganType = "heart" | "kidney" | "liver" | "lung" | "cornea";
 type Status = "available" | "in-transit" | "transplanted" | "requested";
-
-interface Organ {
-  id: string;
-  type: OrganType;
-  donorId: string;
-  bloodType: string;
-  location: string;
-  status: Status;
-  timestamp: string;
-}
 
 interface OrganRequest {
   id: string;
@@ -62,76 +52,42 @@ const Registry = () => {
   const [isTransplantDialogOpen, setIsTransplantDialogOpen] = useState(false);
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [isViewRequestsOpen, setIsViewRequestsOpen] = useState(false);
-  const [selectedOrgan, setSelectedOrgan] = useState<Organ | null>(null);
+  const [selectedOrgan, setSelectedOrgan] = useState<BackendOrgan | null>(null);
   const [transferLocation, setTransferLocation] = useState("");
   const [requestingHospital, setRequestingHospital] = useState("");
   const [requests, setRequests] = useState<OrganRequest[]>([]);
-  const [organs, setOrgans] = useState<Organ[]>([
-    {
-      id: "NFT-001",
-      type: "heart",
-      donorId: "D-2847",
-      bloodType: "O+",
-      location: "Nairobi General Hospital",
-      status: "in-transit",
-      timestamp: "2024-01-27 14:30",
-    },
-    {
-      id: "NFT-002",
-      type: "kidney",
-      donorId: "D-3921",
-      bloodType: "A+",
-      location: "Kenyatta Hospital",
-      status: "transplanted",
-      timestamp: "2024-01-27 13:15",
-    },
-    {
-      id: "NFT-003",
-      type: "liver",
-      donorId: "D-4156",
-      bloodType: "B-",
-      location: "Aga Khan Hospital",
-      status: "available",
-      timestamp: "2024-01-27 12:00",
-    },
-    {
-      id: "NFT-004",
-      type: "lung",
-      donorId: "D-5283",
-      bloodType: "AB+",
-      location: "Mater Hospital",
-      status: "available",
-      timestamp: "2024-01-27 11:45",
-    },
-    {
-      id: "NFT-005",
-      type: "cornea",
-      donorId: "D-6794",
-      bloodType: "O-",
-      location: "Coast General Hospital",
-      status: "in-transit",
-      timestamp: "2024-01-27 10:30",
-    },
-    {
-      id: "NFT-006",
-      type: "kidney",
-      donorId: "D-7821",
-      bloodType: "A-",
-      location: "Nakuru Level 5 Hospital",
-      status: "transplanted",
-      timestamp: "2024-01-27 09:20",
-    },
-  ]);
+  const [organs, setOrgans] = useState<BackendOrgan[]>([]);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
-    type: "" as OrganType | "",
+    type: "" as string,
     donorId: "",
     bloodType: "",
     location: "",
   });
   const { toast } = useToast();
 
+  // Fetch organs from backend
+  const fetchOrgans = useCallback(async () => {
+    try {
+      console.log("🔄 Fetching organs from backend...");
+      const data = await api.getOrgans();
+      console.log("📦 Received organs:", data?.length || 0);
+      setOrgans(data || []);
+      setLoading(false);
+    } catch (error) {
+      console.error("❌ Failed to fetch organs:", error);
+      setOrgans([]);
+      setLoading(false);
+      toast({
+        title: "Error",
+        description: "Failed to load organs from the backend.",
+        variant: "destructive",
+      });
+    }
+  }, [toast]);
+
   // Create Organ - Register new organ as NFT on Hedera
-  const createOrgan = () => {
+  const createOrgan = async () => {
     if (!formData.type || !formData.donorId || !formData.bloodType || !formData.location) {
       toast({
         title: "Missing Information",
@@ -141,36 +97,37 @@ const Registry = () => {
       return;
     }
 
-    const newOrgan: Organ = {
-      id: `NFT-${String(organs.length + 1).padStart(3, "0")}`,
-      type: formData.type,
-      donorId: formData.donorId,
-      bloodType: formData.bloodType,
-      location: formData.location,
-      status: "available",
-      timestamp: new Date().toLocaleString("en-US", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }),
-    };
+    try {
+      await api.createOrgan({
+        donor: "0x" + formData.donorId.padEnd(40, "0"), // Convert donor ID to address format
+        organType: formData.type,
+        bloodType: formData.bloodType,
+        tokenURI: "",
+      });
 
-    // Simulate Hedera NFT minting
-    setOrgans([newOrgan, ...organs]);
-    setFormData({ type: "", donorId: "", bloodType: "", location: "" });
-    setIsDialogOpen(false);
-    
-    toast({
-      title: "✅ Organ Created on Hedera",
-      description: `${newOrgan.type} minted as ${newOrgan.id} NFT - Status: Available`,
-    });
+      // Reset form and close dialog
+      setFormData({ type: "", donorId: "", bloodType: "", location: "" });
+      setIsDialogOpen(false);
+
+      // Refresh data
+      await fetchOrgans();
+
+      toast({
+        title: "✅ Organ Created on Hedera",
+        description: `${formData.type} minted as NFT - Status: Available`,
+      });
+    } catch (error) {
+      console.error("Error creating organ:", error);
+      toast({
+        title: "Creation Failed",
+        description: "Failed to create organ on Hedera.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Transfer Organ - Move organ to different location
-  const transferOrgan = () => {
+  const transferOrgan = async () => {
     if (!selectedOrgan || !transferLocation.trim()) {
       toast({
         title: "Invalid Transfer",
@@ -180,91 +137,75 @@ const Registry = () => {
       return;
     }
 
-    setOrgans(organs.map(organ => 
-      organ.id === selectedOrgan.id
-        ? { 
-            ...organ, 
-            status: "in-transit", 
-            location: transferLocation,
-            timestamp: new Date().toLocaleString("en-US", {
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            })
-          }
-        : organ
-    ));
+    try {
+      await api.transferOrgan({
+        tokenId: selectedOrgan.tokenId,
+        hospital: transferLocation,
+      });
 
-    toast({
-      title: "🚑 Organ Transfer Initiated",
-      description: `${selectedOrgan.type} ${selectedOrgan.id} en route to ${transferLocation}`,
-    });
+      setOrgans(organs.map(organ =>
+        organ.tokenId === selectedOrgan.tokenId
+          ? {
+              ...organ,
+              status: "Transferred",
+              createdAt: new Date().toISOString()
+            }
+          : organ
+      ));
 
-    setIsTransferDialogOpen(false);
-    setSelectedOrgan(null);
-    setTransferLocation("");
+      toast({
+        title: "🚑 Organ Transfer Initiated",
+        description: `${selectedOrgan.organType} en route to ${transferLocation}`,
+      });
+
+      setIsTransferDialogOpen(false);
+      setSelectedOrgan(null);
+      setTransferLocation("");
+    } catch (error) {
+      console.error("Error transferring organ:", error);
+      toast({
+        title: "Transfer Failed",
+        description: "Failed to transfer organ.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Transplant Organ - Mark organ as successfully transplanted
-  const transplantOrgan = () => {
+  const transplantOrgan = async () => {
     if (!selectedOrgan) return;
 
-    setOrgans(organs.map(organ => 
-      organ.id === selectedOrgan.id
-        ? { 
-            ...organ, 
-            status: "transplanted",
-            timestamp: new Date().toLocaleString("en-US", {
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            })
-          }
-        : organ
-    ));
+    try {
+      await api.transplantOrgan({
+        tokenId: selectedOrgan.tokenId,
+        recipient: selectedOrgan.donor || "0x0000000000000000000000000000000000000000", // Use donor as recipient for demo
+      });
 
-    toast({
-      title: "💚 Transplant Successful",
-      description: `${selectedOrgan.type} ${selectedOrgan.id} successfully transplanted at ${selectedOrgan.location}`,
-    });
+      setOrgans(organs.map(organ =>
+        organ.tokenId === selectedOrgan.tokenId
+          ? {
+              ...organ,
+              status: "Transplanted",
+              createdAt: new Date().toISOString()
+            }
+          : organ
+      ));
 
-    setIsTransplantDialogOpen(false);
-    setSelectedOrgan(null);
-  };
+      toast({
+        title: "💚 Transplant Successful",
+        description: `${selectedOrgan.organType} successfully transplanted`,
+      });
 
-  // Mark Arrived - Change status from in-transit back to available
-  const markAsArrived = () => {
-    if (!selectedOrgan) return;
-
-    setOrgans(organs.map(organ => 
-      organ.id === selectedOrgan.id
-        ? { 
-            ...organ, 
-            status: "available",
-            timestamp: new Date().toLocaleString("en-US", {
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            })
-          }
-        : organ
-    ));
-
-    toast({
-      title: "📍 Organ Arrived",
-      description: `${selectedOrgan.type} ${selectedOrgan.id} has arrived at ${selectedOrgan.location} and is now available`,
-    });
-
-    setSelectedOrgan(null);
+      setIsTransplantDialogOpen(false);
+      setSelectedOrgan(null);
+    } catch (error) {
+      console.error("Error transplanting organ:", error);
+      toast({
+        title: "Transplant Failed",
+        description: "Failed to complete transplant.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Request Organ - Create a request from another hospital
@@ -280,9 +221,9 @@ const Registry = () => {
 
     const newRequest: OrganRequest = {
       id: `REQ-${String(requests.length + 1).padStart(3, "0")}`,
-      organId: selectedOrgan.id,
+      organId: selectedOrgan.tokenId.toString(),
       requestingHospital: requestingHospital,
-      owningHospital: selectedOrgan.location,
+      owningHospital: "Hospital", // Simplified for demo
       status: "pending",
       timestamp: new Date().toLocaleString("en-US", {
         year: "numeric",
@@ -294,20 +235,13 @@ const Registry = () => {
       }),
     };
 
-    // Update organ status to "requested"
-    setOrgans(organs.map(organ => 
-      organ.id === selectedOrgan.id
-        ? { 
-            ...organ, 
+    // Update organ status locally for UI - changes to "requested" immediately
+    setOrgans(organs.map(organ =>
+      organ.tokenId === selectedOrgan.tokenId
+        ? {
+            ...organ,
             status: "requested",
-            timestamp: new Date().toLocaleString("en-US", {
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            })
+            createdAt: new Date().toISOString()
           }
         : organ
     ));
@@ -316,7 +250,7 @@ const Registry = () => {
 
     toast({
       title: "📨 Request Sent",
-      description: `Request sent to ${selectedOrgan.location} for ${selectedOrgan.type} ${selectedOrgan.id}`,
+      description: `${selectedOrgan.organType} ${selectedOrgan.tokenId} requested by ${requestingHospital}`,
     });
 
     setIsRequestDialogOpen(false);
@@ -324,75 +258,80 @@ const Registry = () => {
     setRequestingHospital("");
   };
 
-  // Accept Request - Transfer organ to requesting hospital
+  // Accept Request - Transfer organ to requesting hospital and change status
   const acceptRequest = (request: OrganRequest) => {
-    const organ = organs.find(o => o.id === request.organId);
+    const organ = organs.find(o => o.tokenId.toString() === request.organId);
     if (!organ) return;
 
-    setOrgans(organs.map(o => 
-      o.id === request.organId
-        ? { 
-            ...o, 
-            status: "in-transit", 
-            location: request.requestingHospital,
-            timestamp: new Date().toLocaleString("en-US", {
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            })
+    // Update organ status to "in-transit" and change location to requesting hospital
+    setOrgans(organs.map(o =>
+      o.tokenId.toString() === request.organId
+        ? {
+            ...o,
+            status: "Transferred",
+            createdAt: new Date().toISOString()
           }
         : o
     ));
 
-    setRequests(requests.map(r => 
+    // Update request status to accepted
+    setRequests(requests.map(r =>
       r.id === request.id ? { ...r, status: "accepted" } : r
     ));
 
     toast({
       title: "✅ Request Accepted",
-      description: `${organ.type} ${organ.id} is now being transferred to ${request.requestingHospital}`,
+      description: `${organ.organType} ${organ.tokenId} now transferring to ${request.requestingHospital}`,
     });
   };
 
-  // Reject Request
+  // Reject Request - Change organ status back to "Donated"
   const rejectRequest = (request: OrganRequest) => {
-    const organ = organs.find(o => o.id === request.organId);
-    
-    // Change organ status back to "available" when request is rejected
+    const organ = organs.find(o => o.tokenId.toString() === request.organId);
+
+    // Change organ status back to "Donated" (available) when request is rejected
     if (organ) {
-      setOrgans(organs.map(o => 
-        o.id === request.organId
-          ? { 
-              ...o, 
-              status: "available",
-              timestamp: new Date().toLocaleString("en-US", {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: false,
-              })
+      setOrgans(organs.map(o =>
+        o.tokenId.toString() === request.organId
+          ? {
+              ...o,
+              status: "Donated",
+              createdAt: new Date().toISOString()
             }
           : o
       ));
     }
 
-    setRequests(requests.map(r => 
+    // Update request status to rejected
+    setRequests(requests.map(r =>
       r.id === request.id ? { ...r, status: "rejected" } : r
     ));
 
     toast({
       title: "❌ Request Rejected",
-      description: `Request from ${request.requestingHospital} has been rejected`,
+      description: `Request from ${request.requestingHospital} has been rejected - ${organ?.organType} ${organ?.tokenId} remains available`,
     });
   };
 
+  // Load organs on component mount
+  useEffect(() => {
+    fetchOrgans();
+    const interval = setInterval(fetchOrgans, 30000); // Refresh every 30 seconds
+    return () => clearInterval(interval);
+  }, [fetchOrgans]);
+
+  // Map backend status to UI status
+  const getStatusForBadge = (status: string): Status => {
+    switch (status) {
+      case "Donated": return "available";
+      case "Transferred": return "in-transit";
+      case "Transplanted": return "transplanted";
+      default: return "available";
+    }
+  };
+
   const filteredOrgans =
-    filterStatus === "all" ? organs : organs.filter((organ) => organ.status === filterStatus);
+    filterStatus === "all" ? organs : organs.filter((organ) => getStatusForBadge(organ.status) === filterStatus);
 
   return (
     <div className="min-h-screen">
@@ -425,18 +364,19 @@ const Registry = () => {
                     <Select
                       value={formData.type}
                       onValueChange={(value) =>
-                        setFormData({ ...formData, type: value as OrganType })
+                        setFormData({ ...formData, type: value })
                       }
                     >
                       <SelectTrigger id="type">
                         <SelectValue placeholder="Select organ type" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="heart">Heart</SelectItem>
-                        <SelectItem value="kidney">Kidney</SelectItem>
-                        <SelectItem value="liver">Liver</SelectItem>
-                        <SelectItem value="lung">Lung</SelectItem>
-                        <SelectItem value="cornea">Cornea</SelectItem>
+                        <SelectItem value="Heart">Heart</SelectItem>
+                        <SelectItem value="Kidney">Kidney</SelectItem>
+                        <SelectItem value="Liver">Liver</SelectItem>
+                        <SelectItem value="Lung">Lung</SelectItem>
+                        <SelectItem value="Pancreas">Pancreas</SelectItem>
+                        <SelectItem value="Intestine">Intestine</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -550,115 +490,115 @@ const Registry = () => {
         <HeartbeatDivider />
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredOrgans.map((organ, index) => (
-            <Card
-              key={organ.id}
-              className="glass-card glow-on-hover animate-slide-up"
-              style={{ animationDelay: `${index * 0.05}s` }}
-            >
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <Heart className="w-5 h-5 text-primary" />
-                    <CardTitle className="text-lg font-display capitalize">{organ.type}</CardTitle>
+          {loading ? (
+            <div className="col-span-full text-center py-12">
+              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
+              <p>Loading organs from Hedera...</p>
+            </div>
+          ) : (
+            filteredOrgans.map((organ, index) => (
+              <Card
+                key={organ.tokenId}
+                className="glass-card glow-on-hover animate-slide-up"
+                style={{ animationDelay: `${index * 0.05}s` }}
+              >
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <Heart className="w-5 h-5 text-primary" />
+                      <CardTitle className="text-lg font-display capitalize">{organ.organType}</CardTitle>
+                    </div>
+                    <StatusBadge status={getStatusForBadge(organ.status)} />
                   </div>
-                  <StatusBadge status={organ.status} />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">NFT ID:</span>
-                    <span className="font-mono font-medium text-foreground">{organ.id}</span>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">NFT ID:</span>
+                      <span className="font-mono font-medium text-foreground">{organ.tokenId}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Blood Type:</span>
+                      <span className="font-medium text-foreground">{organ.bloodType}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Location:</span>
+                      <span className="font-medium text-foreground text-right">Hospital</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-muted-foreground">Timestamp:</span>
+                      <span className="font-mono text-xs text-foreground">{new Date(organ.createdAt).toLocaleString()}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Donor ID:</span>
-                    <span className="font-mono font-medium text-foreground">{organ.donorId}</span>
+                  <div className="flex gap-2 mt-4">
+                    {getStatusForBadge(organ.status) === "available" && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => {
+                            setSelectedOrgan(organ);
+                            setIsTransferDialogOpen(true);
+                          }}
+                        >
+                          <Send className="w-3 h-3 mr-1" />
+                          Transfer
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => {
+                            setSelectedOrgan(organ);
+                            setIsRequestDialogOpen(true);
+                          }}
+                        >
+                          <Inbox className="w-3 h-3 mr-1" />
+                          Request
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => {
+                            setSelectedOrgan(organ);
+                            setIsTransplantDialogOpen(true);
+                          }}
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Transplant
+                        </Button>
+                      </>
+                    )}
+                    {getStatusForBadge(organ.status) === "in-transit" && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-1"
+                          onClick={() => markAsArrived(selectedOrgan || organ)}
+                        >
+                          <MapPin className="w-3 h-3 mr-1" />
+                          Mark Arrived
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="flex-1"
+                          onClick={() => {
+                            setSelectedOrgan(organ);
+                            setIsTransplantDialogOpen(true);
+                          }}
+                        >
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          Transplant
+                        </Button>
+                      </>
+                    )}
                   </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Blood Type:</span>
-                    <span className="font-medium text-foreground">{organ.bloodType}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Location:</span>
-                    <span className="font-medium text-foreground text-right">{organ.location}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Timestamp:</span>
-                    <span className="font-mono text-xs text-foreground">{organ.timestamp}</span>
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-4">
-                  {organ.status === "available" && (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => {
-                          setSelectedOrgan(organ);
-                          setIsTransferDialogOpen(true);
-                        }}
-                      >
-                        <Send className="w-3 h-3 mr-1" />
-                        Transfer
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => {
-                          setSelectedOrgan(organ);
-                          setIsRequestDialogOpen(true);
-                        }}
-                      >
-                        <Inbox className="w-3 h-3 mr-1" />
-                        Request
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => {
-                          setSelectedOrgan(organ);
-                          setIsTransplantDialogOpen(true);
-                        }}
-                      >
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Transplant
-                      </Button>
-                    </>
-                  )}
-                  {organ.status === "in-transit" && (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1"
-                        onClick={() => {
-                          setSelectedOrgan(organ);
-                          markAsArrived();
-                        }}
-                      >
-                        <MapPin className="w-3 h-3 mr-1" />
-                        Mark Arrived
-                      </Button>
-                      <Button
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => {
-                          setSelectedOrgan(organ);
-                          setIsTransplantDialogOpen(true);
-                        }}
-                      >
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Transplant
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            ))
+          )}
         </div>
 
         {/* Transfer Dialog */}
@@ -667,7 +607,7 @@ const Registry = () => {
             <DialogHeader>
               <DialogTitle>Transfer Organ</DialogTitle>
               <DialogDescription>
-                Initiate transfer of {selectedOrgan?.type} ({selectedOrgan?.id}) to a new location
+                Initiate transfer of {selectedOrgan?.organType} ({selectedOrgan?.tokenId}) to a new location
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -696,7 +636,7 @@ const Registry = () => {
             <DialogHeader>
               <DialogTitle>Request Organ Transfer</DialogTitle>
               <DialogDescription>
-                Request {selectedOrgan?.type} ({selectedOrgan?.id}) from {selectedOrgan?.location}
+                Request {selectedOrgan?.organType} ({selectedOrgan?.tokenId})
               </DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
@@ -733,14 +673,14 @@ const Registry = () => {
                 <p className="text-center text-muted-foreground py-8">No requests yet</p>
               ) : (
                 requests.map((request) => {
-                  const organ = organs.find(o => o.id === request.organId);
+                  const organ = organs.find(o => o.tokenId.toString() === request.organId);
                   return (
                     <Card key={request.id} className="p-4">
                       <div className="space-y-2">
                         <div className="flex items-start justify-between">
                           <div>
                             <p className="font-semibold">
-                              {organ?.type} ({request.organId})
+                              {organ?.organType} ({request.organId})
                             </p>
                             <p className="text-sm text-muted-foreground">
                               From: {request.requestingHospital}
@@ -785,8 +725,7 @@ const Registry = () => {
             <AlertDialogHeader>
               <AlertDialogTitle>Confirm Transplant Completion</AlertDialogTitle>
               <AlertDialogDescription>
-                Mark {selectedOrgan?.type} ({selectedOrgan?.id}) as successfully transplanted at{" "}
-                {selectedOrgan?.location}? This action will update the organ status on Hedera Hashgraph.
+                Mark {selectedOrgan?.organType} ({selectedOrgan?.tokenId}) as successfully transplanted at hospital. This action will update the organ status on Hedera Hashgraph.
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -798,6 +737,19 @@ const Registry = () => {
       </div>
     </div>
   );
+
+  // Local functions for the UI
+  function markAsArrived(organ: BackendOrgan) {
+    setOrgans(organs.map(o =>
+      o.tokenId === organ.tokenId
+        ? { ...o, status: "Donated" }
+        : o
+    ));
+    toast({
+      title: "📍 Organ Arrived",
+      description: `${organ.organType} has arrived and is now available`,
+    });
+  }
 };
 
 export default Registry;
