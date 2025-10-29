@@ -4,6 +4,10 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)](https://reactjs.org)
 [![Node.js](https://img.shields.io/badge/Node.js-339933?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
+[![Vercel](https://img.shields.io/badge/Vercel-000000?style=for-the-badge&logo=vercel&logoColor=white)](https://vercel.com)
+[![Render](https://img.shields.io/badge/Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://render.com)
+[![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?style=for-the-badge&logo=supabase&logoColor=white)](https://supabase.com)
 
 > 🌍 **Saving Lives Through Blockchain Technology** - A revolutionary organ donation management platform that digitizes, secures, and streamlines the entire organ donation lifecycle.
 
@@ -59,29 +63,107 @@ While traditional organ donation systems rely on paper trails and phone calls, O
 
 ---
 
+## 🌐 **Live Production Deployment**
+
+### **🔗 Production URLs**
+- **🚀 Live Application:** [https://organ-track-organ-donation-tracking.vercel.app/](https://organ-track-organ-donation-tracking.vercel.app/)
+- **🔗 API Backend:** [https://orgflow-backend-t55x.onrender.com/](https://orgflow-backend-t55x.onrender.com/)
+- **💾 Database:** [Supabase PostgreSQL Dashboard](https://supabase.com/dashboard)
+- **⛓️ Blockchain:** [Hedera Explorer](https://hashscan.io/testnet)
+- **📁 GitHub Repository:** [https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System](https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System)
+
+### **🏗️ Hosting Infrastructure**
+- **Frontend Hosting:** [Vercel](https://vercel.com) (100GB free bandwidth)
+- **Backend Hosting:** [Render](https://render.com) (750 hours/month free)
+- **Database Hosting:** [Supabase](https://supabase.com) (500MB PostgreSQL free)
+- **Blockchain Network:** [Hedera Testnet](https://hedera.com/testnet) (Free for development)
+
+### **📊 Blockchain Configuration**
+- **Network:** Hedera Testnet
+- **Account ID:** `0.0.7128801`
+- **ℏ Balance:** 1000 HBAR (test tokens)
+- **RPC Endpoint:** `https://testnet.hashio.io/api`
+- **SDK:** [@hashgraph/sdk](https://github.com/hashgraph/hedera-sdk-js)
+- **Explorer:** [HashScan](https://hashscan.io/testnet)
+
+### **🗃️ Database Schema**
+```sql
+-- Organs table for primary organ tracking
+CREATE TABLE organs (
+  token_id INTEGER PRIMARY KEY,
+  organ_type VARCHAR(50),
+  blood_type VARCHAR(10),
+  status VARCHAR(20),
+  donor VARCHAR(100),
+  created_at TIMESTAMP
+);
+
+-- Organ requests table for hospital-to-hospital communications
+CREATE TABLE organ_requests (
+  request_id VARCHAR(20) PRIMARY KEY,
+  organ_id INTEGER REFERENCES organs(token_id),
+  requesting_hospital VARCHAR(100),
+  status VARCHAR(20), -- pending, accepted, rejected
+  created_at TIMESTAMP
+);
+```
+
+### **🔌 Production API Endpoints**
+Please note: These are production endpoints hosted on Render
+```bash
+# Organ Management
+POST https://orgflow-backend-t55x.onrender.com/createOrgan     # Register new organ NFT
+PUT  https://orgflow-backend-t55x.onrender.com/transferOrgan   # Transfer to hospital
+PUT  https://orgflow-backend-t55x.onrender.com/transplantOrgan # Complete transplant
+
+# Request System (Hospital-to-Hospital)
+POST https://orgflow-backend-t55x.onrender.com/createOrganRequest # Request organ transfer
+PUT  https://orgflow-backend-t55x.onrender.com/updateOrganRequest # Accept/Reject request
+
+# Data Retrieval
+GET  https://orgflow-backend-t55x.onrender.com/organs         # Get all tracked organs
+GET  https://orgflow-backend-t55x.onrender.com/analytics     # System analytics
+GET  https://orgflow-backend-t55x.onrender.com/organRequests # Get all requests
+GET  https://orgflow-backend-t55x.onrender.com/health        # Health check
+```
+
+### **🎯 Test the Live System**
+Visit [https://organ-track-organ-donation-tracking.vercel.app/](https://organ-track-organ-donation-tracking.vercel.app/) to:
+- ✅ Browse organs awaiting donation
+- ✅ Request organ transfers (hospital-to-hospital)
+- ✅ View real-time analytics dashboard
+- ✅ Experience mobile-responsive interface
+- ✅ Test blockchain-backed organ tracking
+
+---
+
 ## 🎯 **Core Features**
 
 ### 🏥 **Hospital Operations**
 - **Real-Time Organ Registration**: Add organs with type, blood type, and status
-- **Status Tracking**: Monitor organs through donation → transfer → transplant lifecycle
-- **Multi-Hospital Transfers**: Secure transfer coordination between institutions
+- **Blockchain NFT Minting**: Each organ becomes an immutable NFT on Hedera
+- **Hospital Transfer Coordination**: Secure transfers between institutions
+- **Real-Time Status Updates**: 30-second auto-refresh across all hospitals
 
 ### 📊 **Analytics & Reporting**
-- **Live Dashboard**: Real-time metrics and organ availability
+- **Live Dashboard**: [View Live Dashboard](https://organ-track-organ-donation-tracking.vercel.app/)
 - **Transfer Requests**: Hospital-to-hospital communication system
-- **Audit Trails**: Complete history of all organ movements
+- **Audit Trails**: Complete blockchain-verified history
+- **Export Reports**: Regulatory compliance reporting
 
 ### 🔒 **Security & Compliance**
-- **Blockchain Immutability**: No data can be altered or deleted
-- **Regulatory Compliance**: HIPAA-ready architecture
-- **Fraud Prevention**: Cryptographic verification of all transactions
-- **Patient Privacy**: End-to-end encryption for sensitive data
+- **Immutable Blockchain Records**: Cannot be altered or deleted
+- **HIPAA Compliance**: Healthcare data privacy standard
+- **Fraud Prevention**: Cryptographic transaction verification
+- **Regulatory Audit Support**: Blockchain-backed audit trails
+- **Multi-Party Verification**: Hospitals can independently verify records
 
 ### 🖥️ **User Interface**
-- **Medical-Grade Design**: Intuitive healthcare professional interface
-- **Real-Time Updates**: Auto-refresh data every 30 seconds
-- **Responsive**: Works on desktops, tablets, and mobile devices
-- **Accessibility**: Screen reader compatible and keyboard navigation
+- **Medical-Grade Design**: Healthcare professional interface
+- **Fully Responsive**: Desktop, tablet, mobile support
+- **Real-Time Updates**: Automatic data refresh every 30 seconds
+- **Accessibility**: Screen reader compatible, keyboard navigation
+- **Multi-Language**: Ready for internationalization
 
 ---
 
