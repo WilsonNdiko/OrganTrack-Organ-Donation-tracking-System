@@ -167,6 +167,59 @@ async function updateOrganInSupabase(tokenId, updates) {
   }
 }
 
+// Organ Requests database functions
+async function createOrganRequestInSupabase(request) {
+  try {
+    const { error } = await supabase
+      .from('organ_requests')
+      .insert([{
+        request_id: request.requestId,
+        organ_id: request.organId,
+        requesting_hospital: request.requestingHospital,
+        owning_hospital: request.owningHospital || 'General Hospital',
+        status: request.status || 'pending',
+        requester_address: request.requesterAddress || null
+      }]);
+
+    if (error) throw error;
+    console.log(`📨 Created organ request ${request.requestId} in Supabase`);
+  } catch (error) {
+    console.error('❌ Failed to create organ request in Supabase:', error.message);
+  }
+}
+
+async function getOrganRequestsFromSupabase() {
+  try {
+    const { data, error } = await supabase
+      .from('organ_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    console.log(`📋 Retrieved ${data?.length || 0} organ requests from Supabase`);
+    return data || [];
+  } catch (error) {
+    console.error('❌ Failed to get organ requests from Supabase:', error.message);
+    return [];
+  }
+}
+
+async function updateOrganRequestInSupabase(requestId, updates) {
+  try {
+    const { error } = await supabase
+      .from('organ_requests')
+      .update({
+        status: updates.status
+      })
+      .eq('request_id', requestId);
+
+    if (error) throw error;
+    console.log(`📝 Updated organ request ${requestId} status to ${updates.status}`);
+  } catch (error) {
+    console.error('❌ Failed to update organ request in Supabase:', error.message);
+  }
+}
+
 function saveOrgansToFile() {
   try {
     const data = JSON.stringify({
@@ -382,6 +435,86 @@ app.get('/analytics', async (req, res) => {
       };
       res.json(analytics);
     }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// POST /createOrganRequest - Create a new organ transfer request
+app.post('/createOrganRequest', async (req, res) => {
+  try {
+    const { organId, requestingHospital, owningHospital, requesterAddress } = req.body;
+
+    if (!organId || !requestingHospital) {
+      return res.status(400).json({ error: 'Missing required fields: organId and requestingHospital' });
+    }
+
+    const request = {
+      requestId: `REQ-${String(Date.now()).slice(-6)}`,
+      organId: parseInt(organId),
+      requestingHospital,
+      owningHospital: owningHospital || 'General Hospital',
+      status: 'pending',
+      requesterAddress
+    };
+
+    // Update organ status to Requested
+    if (supabase) {
+      await updateOrganInSupabase(organId, { status: 'Requested' });
+      await createOrganRequestInSupabase(request);
+    }
+
+    res.json({ success: true, requestId: request.requestId, message: 'Organ transfer request created successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// GET /organRequests - Get all organ requests
+app.get('/organRequests', async (req, res) => {
+  try {
+    let requests = [];
+
+    if (supabase) {
+      requests = await getOrganRequestsFromSupabase();
+    }
+
+    res.json(requests);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT /updateOrganRequest - Accept or reject organ request
+app.put('/updateOrganRequest', async (req, res) => {
+  try {
+    const { requestId, status, organId } = req.body;
+
+    if (!requestId || !status || !['accepted', 'rejected'].includes(status)) {
+      return res.status(400).json({ error: 'Missing required fields or invalid status. Must provide requestId and status (accepted or rejected)' });
+    }
+
+    if (supabase) {
+      await updateOrganRequestInSupabase(requestId, { status });
+
+      // If accepted, update organ status and transfer it
+      if (status === 'accepted' && organId) {
+        const requestData = await getOrganRequestsFromSupabase();
+        const request = requestData.find(r => r.request_id === requestId);
+
+        if (request) {
+          await updateOrganInSupabase(organId, {
+            status: 'Transferred',
+            hospital: request.requesting_hospital
+          });
+        }
+      } else if (status === 'rejected' && organId) {
+        // If rejected, reset organ status to Donated
+        await updateOrganInSupabase(organId, { status: 'Donated' });
+      }
+    }
+
+    res.json({ success: true, message: `Request ${requestId} has been ${status}` });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

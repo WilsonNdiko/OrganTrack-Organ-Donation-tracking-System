@@ -32,18 +32,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { api, Organ as BackendOrgan } from "../../../src/services/api";
+import { api, Organ as BackendOrgan, OrganRequest } from "../../../src/services/api";
 
 type Status = "available" | "in-transit" | "transplanted" | "requested";
-
-interface OrganRequest {
-  id: string;
-  organId: string;
-  requestingHospital: string;
-  owningHospital: string;
-  status: "pending" | "accepted" | "rejected";
-  timestamp: string;
-}
 
 const Registry = () => {
   const [filterStatus, setFilterStatus] = useState<Status | "all">("all");
@@ -85,6 +76,19 @@ const Registry = () => {
       });
     }
   }, [toast]);
+
+  // Fetch organ requests from backend
+  const fetchOrganRequests = useCallback(async () => {
+    try {
+      console.log("🔄 Fetching organ requests...");
+      const data = await api.getOrganRequests();
+      console.log("📋 Received requests:", data?.length || 0);
+      setRequests(data || []);
+    } catch (error) {
+      console.error("❌ Failed to fetch organ requests:", error);
+      setRequests([]);
+    }
+  }, []);
 
   // Create Organ - Register new organ as NFT on Hedera
   const createOrgan = async () => {
@@ -209,7 +213,7 @@ const Registry = () => {
   };
 
   // Request Organ - Create a request from another hospital
-  const requestOrgan = () => {
+  const requestOrgan = async () => {
     if (!selectedOrgan || !requestingHospital.trim()) {
       toast({
         title: "Invalid Request",
@@ -219,106 +223,120 @@ const Registry = () => {
       return;
     }
 
-    const newRequest: OrganRequest = {
-      id: `REQ-${String(requests.length + 1).padStart(3, "0")}`,
-      organId: selectedOrgan.tokenId.toString(),
-      requestingHospital: requestingHospital,
-      owningHospital: "Hospital", // Simplified for demo
-      status: "pending",
-      timestamp: new Date().toLocaleString("en-US", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }),
-    };
+    try {
+      const result = await api.createOrganRequest({
+        organId: selectedOrgan.tokenId,
+        requestingHospital: requestingHospital,
+        owningHospital: "General Hospital",
+        requesterAddress: `0x${Date.now().toString(16)}`, // Dummy address
+      });
 
-    // Update organ status locally for UI - changes to "requested" immediately
-    setOrgans(organs.map(organ =>
-      organ.tokenId === selectedOrgan.tokenId
-        ? {
-            ...organ,
-            status: "requested",
-            createdAt: new Date().toISOString()
-          }
-        : organ
-    ));
+      if (result.success) {
+        // Update organ status locally for UI - changes to "Requested"
+        setOrgans(organs.map(organ =>
+          organ.tokenId === selectedOrgan.tokenId
+            ? {
+                ...organ,
+                status: "Requested",
+                createdAt: new Date().toISOString()
+              }
+            : organ
+        ));
 
-    setRequests([newRequest, ...requests]);
+        // Refresh requests list
+        await fetchOrganRequests();
 
-    toast({
-      title: "📨 Request Sent",
-      description: `${selectedOrgan.organType} ${selectedOrgan.tokenId} requested by ${requestingHospital}`,
-    });
+        toast({
+          title: "📨 Request Sent Successfully",
+          description: `${selectedOrgan.organType} ${selectedOrgan.tokenId} requested by ${requestingHospital}`,
+        });
 
-    setIsRequestDialogOpen(false);
-    setSelectedOrgan(null);
-    setRequestingHospital("");
+        setIsRequestDialogOpen(false);
+        setSelectedOrgan(null);
+        setRequestingHospital("");
+      } else {
+        throw new Error(result.message || "Failed to create request");
+      }
+    } catch (error) {
+      console.error("Error creating request:", error);
+      toast({
+        title: "Request Failed",
+        description: "Failed to send organ request. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Accept Request - Transfer organ to requesting hospital and change status
-  const acceptRequest = (request: OrganRequest) => {
-    const organ = organs.find(o => o.tokenId.toString() === request.organId);
+  const acceptRequest = async (request: OrganRequest) => {
+    const organ = organs.find(o => o.tokenId.toString() === request.organ_id?.toString());
     if (!organ) return;
 
-    // Update organ status to "in-transit" and change location to requesting hospital
-    setOrgans(organs.map(o =>
-      o.tokenId.toString() === request.organId
-        ? {
-            ...o,
-            status: "Transferred",
-            createdAt: new Date().toISOString()
-          }
-        : o
-    ));
+    try {
+      await api.updateOrganRequest({
+        requestId: request.request_id,
+        status: 'accepted',
+        organId: request.organ_id
+      });
 
-    // Update request status to accepted
-    setRequests(requests.map(r =>
-      r.id === request.id ? { ...r, status: "accepted" } : r
-    ));
+      toast({
+        title: "✅ Request Accepted",
+        description: `${organ.organType} ${organ.tokenId} now transferring to ${request.requesting_hospital}`,
+      });
 
-    toast({
-      title: "✅ Request Accepted",
-      description: `${organ.organType} ${organ.tokenId} now transferring to ${request.requestingHospital}`,
-    });
+      // Refresh data
+      await fetchOrgans();
+      await fetchOrganRequests();
+    } catch (error) {
+      console.error('Error accepting request:', error);
+      toast({
+        title: "Accept Failed",
+        description: "Failed to accept organ request. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   // Reject Request - Change organ status back to "Donated"
-  const rejectRequest = (request: OrganRequest) => {
-    const organ = organs.find(o => o.tokenId.toString() === request.organId);
+  const rejectRequest = async (request: OrganRequest) => {
+    const organ = organs.find(o => o.tokenId.toString() === request.organ_id?.toString());
 
-    // Change organ status back to "Donated" (available) when request is rejected
-    if (organ) {
-      setOrgans(organs.map(o =>
-        o.tokenId.toString() === request.organId
-          ? {
-              ...o,
-              status: "Donated",
-              createdAt: new Date().toISOString()
-            }
-          : o
-      ));
+    try {
+      await api.updateOrganRequest({
+        requestId: request.request_id,
+        status: 'rejected',
+        organId: request.organ_id
+      });
+
+      toast({
+        title: "❌ Request Rejected",
+        description: `Request from ${request.requesting_hospital} has been rejected - ${organ?.organType} ${organ?.tokenId} remains available`,
+      });
+
+      // Refresh data
+      await fetchOrgans();
+      await fetchOrganRequests();
+    } catch (error) {
+      console.error('Error rejecting request:', error);
+      toast({
+        title: "Reject Failed",
+        description: "Failed to reject organ request. Please try again.",
+        variant: "destructive",
+      });
     }
-
-    // Update request status to rejected
-    setRequests(requests.map(r =>
-      r.id === request.id ? { ...r, status: "rejected" } : r
-    ));
-
-    toast({
-      title: "❌ Request Rejected",
-      description: `Request from ${request.requestingHospital} has been rejected - ${organ?.organType} ${organ?.tokenId} remains available`,
-    });
   };
 
-  // Load organs on component mount
+  // Load organs and requests on component mount
   useEffect(() => {
     fetchOrgans();
-    const interval = setInterval(fetchOrgans, 30000); // Refresh every 30 seconds
-    return () => clearInterval(interval);
-  }, [fetchOrgans]);
+    fetchOrganRequests();
+    const organsInterval = setInterval(fetchOrgans, 30000); // Refresh every 30 seconds
+    const requestsInterval = setInterval(fetchOrganRequests, 30000); // Refresh requests too
+    return () => {
+      clearInterval(organsInterval);
+      clearInterval(requestsInterval);
+    };
+  }, [fetchOrgans, fetchOrganRequests]);
 
   // Map backend status to UI status
   const getStatusForBadge = (status: string): Status => {
@@ -681,25 +699,25 @@ const Registry = () => {
                 <p className="text-center text-muted-foreground py-8">No requests yet</p>
               ) : (
                 requests.map((request) => {
-                  const organ = organs.find(o => o.tokenId.toString() === request.organId);
+                  const organ = organs.find(o => o.tokenId.toString() === request.organ_id?.toString());
                   return (
                     <Card key={request.id} className="p-4">
                       <div className="space-y-2">
                         <div className="flex items-start justify-between">
                           <div>
                             <p className="font-semibold">
-                              {organ?.organType} ({request.organId})
+                              {organ?.organType} ({request.organ_id})
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              From: {request.requestingHospital}
+                              From: {request.requesting_hospital}
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              To: {request.owningHospital}
+                              To: {request.owning_hospital}
                             </p>
                           </div>
                           <StatusBadge status={request.status} />
                         </div>
-                        <p className="text-xs text-muted-foreground">{request.timestamp}</p>
+                        <p className="text-xs text-muted-foreground">{new Date(request.created_at).toLocaleString()}</p>
                         {request.status === "pending" && (
                           <div className="flex gap-2 mt-3">
                             <Button

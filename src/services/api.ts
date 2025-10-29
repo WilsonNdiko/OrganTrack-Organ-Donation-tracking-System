@@ -40,6 +40,23 @@ export interface AnalyticsData {
   timestamp: string;
 }
 
+export interface OrganRequest {
+  id?: number;
+  request_id: string;
+  organ_id: number;
+  requesting_hospital: string;
+  owning_hospital: string;
+  status: 'pending' | 'accepted' | 'rejected';
+  requester_address?: string;
+  created_at: string;
+  updated_at?: string;
+  // Frontend compatibility aliases
+  organId?: string;
+  requestingHospital?: string;
+  owningHospital?: string;
+  timestamp?: string;
+}
+
 export const api = {
   // Organ management
   createOrgan: async (data: CreateOrganRequest) => {
@@ -77,6 +94,39 @@ export const api = {
 
   getAnalytics: async (): Promise<AnalyticsData> => {
     const response = await fetch(`${API_BASE_URL}/analytics`);
+    return response.json();
+  },
+
+  // Organ requests management
+  createOrganRequest: async (data: {
+    organId: number;
+    requestingHospital: string;
+    owningHospital?: string;
+    requesterAddress?: string;
+  }) => {
+    const response = await fetch(`${API_BASE_URL}/createOrganRequest`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    return response.json();
+  },
+
+  getOrganRequests: async (): Promise<OrganRequest[]> => {
+    const response = await fetch(`${API_BASE_URL}/organRequests`);
+    return response.json();
+  },
+
+  updateOrganRequest: async (data: {
+    requestId: string;
+    status: 'accepted' | 'rejected';
+    organId?: number;
+  }) => {
+    const response = await fetch(`${API_BASE_URL}/updateOrganRequest`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
     return response.json();
   },
 };
