@@ -336,17 +336,17 @@ const Registry = () => {
   return (
     <div className="min-h-screen">
       <div className="container mx-auto px-4 py-8">
-        <div className="flex items-center justify-between mb-8 animate-slide-up">
-          <div className="flex items-center gap-4">
+        <div className="mb-8 animate-slide-up">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-6">
             <div>
-              <h1 className="text-4xl font-display font-bold text-foreground mb-2">Organ Registry</h1>
-              <p className="text-muted-foreground">
+              <h1 className="text-3xl sm:text-4xl font-display font-bold text-foreground mb-2">Organ Registry</h1>
+              <p className="text-sm sm:text-base text-muted-foreground">
                 All organs registered as NFTs on Hedera Hashgraph
               </p>
             </div>
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2">
+                <Button className="w-full lg:w-auto gap-2">
                   <Plus className="w-4 h-4" />
                   Register New Organ
                 </Button>
@@ -435,54 +435,62 @@ const Registry = () => {
               </DialogContent>
             </Dialog>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col sm:flex-row gap-4 sm:items-center sm:justify-between">
             <Button
               variant="outline"
-              className="gap-2"
+              className="gap-2 w-full sm:w-auto"
               onClick={() => setIsViewRequestsOpen(true)}
             >
               <Inbox className="w-4 h-4" />
               Requests ({requests.filter(r => r.status === "pending").length})
             </Button>
-            <div className="flex items-center gap-2">
-              <Filter className="w-5 h-5 text-muted-foreground" />
-              <div className="flex gap-2">
-              <Button
-                variant={filterStatus === "all" ? "default" : "outline"}
-                onClick={() => setFilterStatus("all")}
-                size="sm"
-              >
-                All
-              </Button>
-              <Button
-                variant={filterStatus === "available" ? "default" : "outline"}
-                onClick={() => setFilterStatus("available")}
-                size="sm"
-              >
-                Available
-              </Button>
-              <Button
-                variant={filterStatus === "in-transit" ? "default" : "outline"}
-                onClick={() => setFilterStatus("in-transit")}
-                size="sm"
-              >
-                In Transit
-              </Button>
-              <Button
-                variant={filterStatus === "transplanted" ? "default" : "outline"}
-                onClick={() => setFilterStatus("transplanted")}
-                size="sm"
-              >
-                Transplanted
-              </Button>
-              <Button
-                variant={filterStatus === "requested" ? "default" : "outline"}
-                onClick={() => setFilterStatus("requested")}
-                size="sm"
-              >
-                Requested
-              </Button>
-            </div>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+              <div className="flex items-center gap-2">
+                <Filter className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+                <span className="text-sm font-medium">Filter:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  variant={filterStatus === "all" ? "default" : "outline"}
+                  onClick={() => setFilterStatus("all")}
+                  size="sm"
+                  className="text-xs"
+                >
+                  All
+                </Button>
+                <Button
+                  variant={filterStatus === "available" ? "default" : "outline"}
+                  onClick={() => setFilterStatus("available")}
+                  size="sm"
+                  className="text-xs"
+                >
+                  Available
+                </Button>
+                <Button
+                  variant={filterStatus === "in-transit" ? "default" : "outline"}
+                  onClick={() => setFilterStatus("in-transit")}
+                  size="sm"
+                  className="text-xs"
+                >
+                  In Transit
+                </Button>
+                <Button
+                  variant={filterStatus === "transplanted" ? "default" : "outline"}
+                  onClick={() => setFilterStatus("transplanted")}
+                  size="sm"
+                  className="text-xs"
+                >
+                  Transplanted
+                </Button>
+                <Button
+                  variant={filterStatus === "requested" ? "default" : "outline"}
+                  onClick={() => setFilterStatus("requested")}
+                  size="sm"
+                  className="text-xs"
+                >
+                  Requested
+                </Button>
+              </div>
             </div>
           </div>
         </div>
