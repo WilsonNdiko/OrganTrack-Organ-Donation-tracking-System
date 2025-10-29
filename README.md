@@ -417,7 +417,7 @@ This project represents countless hours of work from healthcare professionals, b
 
 ## 🎊 **Ready to Save Lives?**
 
-**Start using OrgFlow today:** [`https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System.git`]([https://organ-track-organ-donation-tracking.vercel.app])
+**Start using OrgFlow today:** [`https://organ-track-organ-donation-tracking.vercel.app`]([https://organ-track-organ-donation-tracking.vercel.app])
 
 **Together, let's make organ donation more efficient, transparent, and effective at saving lives worldwide.** 💙🩺✨
 
