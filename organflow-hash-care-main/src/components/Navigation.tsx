@@ -16,10 +16,10 @@ const Navigation = () => {
   }, [darkMode]);
 
   const navItems = [
-    { path: "/", icon: Activity, label: "Dashboard" },
-    { path: "/registry", icon: Heart, label: "Organ Registry" },
-    { path: "/map", icon: Map, label: "Live Map" },
-    { path: "/ledger", icon: Shield, label: "Transparency" },
+    { path: "/", icon: Activity, label: "Dashboard", shortLabel: "Home" },
+    { path: "/registry", icon: Heart, label: "Registry", shortLabel: "Registry" },
+    { path: "/map", icon: Map, label: "Map", shortLabel: "Map" },
+    { path: "/ledger", icon: Shield, label: "Ledger", shortLabel: "Ledger" },
   ];
 
   return (

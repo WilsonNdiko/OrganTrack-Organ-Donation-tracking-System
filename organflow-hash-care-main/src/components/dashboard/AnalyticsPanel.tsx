@@ -60,7 +60,7 @@ const AnalyticsPanel = () => {
   return (
     <div className="space-y-6">
       {/* Key Metrics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-4">
         <Card className="glass-card glow-on-hover">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Organs</CardTitle>
@@ -114,7 +114,7 @@ const AnalyticsPanel = () => {
             <CardTitle className="font-display">Organ Status Distribution</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={300} className="sm:h-[250px]">
               <PieChart>
                 <Pie
                   data={statusData}
@@ -144,7 +144,7 @@ const AnalyticsPanel = () => {
                 />
               </PieChart>
             </ResponsiveContainer>
-            <div className="flex justify-center space-x-4 mt-4">
+            <div className="flex flex-wrap justify-center gap-x-4 gap-y-2 mt-4">
               {statusData.map((item, index) => (
                 <div key={index} className="flex items-center">
                   <div
@@ -164,7 +164,7 @@ const AnalyticsPanel = () => {
             <CardTitle className="font-display">Monthly Trends</CardTitle>
           </CardHeader>
           <CardContent>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={300} className="sm:h-[250px]">
               <LineChart data={trendData}>
                 <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                 <XAxis dataKey="month" className="text-muted-foreground" />
