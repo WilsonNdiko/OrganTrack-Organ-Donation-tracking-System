@@ -5,12 +5,22 @@ import { Client, PrivateKey, AccountId } from '@hashgraph/sdk';
 import fs from 'fs';
 import 'dotenv/config';
 import fetch from 'node-fetch'; // For Mirror Node API calls
+import { createClient } from '@supabase/supabase-js';
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const port = process.env.PORT || 3002;
+
+// Supabase Configuration
+let supabase = null;
+if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+  supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY);
+  console.log('🗄️  Supabase database connected');
+} else {
+  console.log('📁 Using JSON file storage (no Supabase configured)');
+}
 
 // Hedera Configuration
 let provider = null;
@@ -98,6 +108,65 @@ function loadOrgansFromFile() {
   }
 }
 
+// Supabase database functions
+async function loadOrgansFromSupabase() {
+  try {
+    const { data, error } = await supabase
+      .from('organs')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    organs = data || [];
+    nextTokenId = Math.max(...organs.map(o => o.token_id || 0), 0) + 1;
+    console.log(`🗄️  Loaded ${organs.length} organs from Supabase`);
+  } catch (error) {
+    console.error('❌ Failed to load organs from Supabase:', error.message);
+  }
+}
+
+async function saveOrganToSupabase(organ) {
+  try {
+    const { error } = await supabase
+      .from('organs')
+      .insert([{
+        token_id: organ.tokenId,
+        organ_type: organ.organType,
+        blood_type: organ.bloodType,
+        status: organ.status,
+        donor: organ.donor,
+        token_uri: organ.tokenURI,
+        hospital: organ.hospital,
+        recipient: organ.recipient,
+        created_at: new Date(organ.createdAt).toISOString()
+      }]);
+
+    if (error) throw error;
+    console.log(`💾 Saved organ ${organ.tokenId} to Supabase`);
+  } catch (error) {
+    console.error('❌ Failed to save organ to Supabase:', error.message);
+  }
+}
+
+async function updateOrganInSupabase(tokenId, updates) {
+  try {
+    const { error } = await supabase
+      .from('organs')
+      .update({
+        status: updates.status,
+        hospital: updates.hospital,
+        recipient: updates.recipient
+      })
+      .eq('token_id', tokenId);
+
+    if (error) throw error;
+    console.log(`📝 Updated organ ${tokenId} in Supabase`);
+  } catch (error) {
+    console.error('❌ Failed to update organ in Supabase:', error.message);
+  }
+}
+
 function saveOrgansToFile() {
   try {
     const data = JSON.stringify({
@@ -113,7 +182,11 @@ function saveOrgansToFile() {
 }
 
 // Initialize data
-loadOrgansFromFile();
+if (supabase) {
+  loadOrgansFromSupabase();
+} else {
+  loadOrgansFromFile();
+}
 
 // Mock implementation (only if no data exists)
 async function initializeMockData() {
@@ -174,7 +247,14 @@ app.post('/createOrgan', async (req, res) => {
         recipient: null,
       };
       organs.push(organ);
-      saveOrgansToFile(); // Persist data
+
+      // Save to Supabase if available, otherwise to file
+      if (supabase) {
+        await saveOrganToSupabase(organ);
+      } else {
+        saveOrgansToFile();
+      }
+
       res.json({ success: true, txHash: `mock_${organ.tokenId}`, tokenId: organ.tokenId });
     }
   } catch (error) {
@@ -198,7 +278,14 @@ app.post('/transferOrgan', async (req, res) => {
       }
       organ.status = 'Transferred';
       organ.hospital = hospital;
-      saveOrgansToFile(); // Persist data
+
+      // Update in Supabase if available, otherwise save to file
+      if (supabase) {
+        await updateOrganInSupabase(tokenId, { status: 'Transferred', hospital });
+      } else {
+        saveOrgansToFile();
+      }
+
       res.json({ success: true, txHash: `mock_transfer_${tokenId}` });
     }
   } catch (error) {
@@ -222,7 +309,14 @@ app.post('/transplantOrgan', async (req, res) => {
       }
       organ.status = 'Transplanted';
       organ.recipient = recipient;
-      saveOrgansToFile(); // Persist data
+
+      // Update in Supabase if available, otherwise save to file
+      if (supabase) {
+        await updateOrganInSupabase(tokenId, { status: 'Transplanted', recipient });
+      } else {
+        saveOrgansToFile();
+      }
+
       res.json({ success: true, txHash: `mock_transplant_${tokenId}` });
     }
   } catch (error) {
@@ -291,6 +385,17 @@ app.get('/analytics', async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// GET /health - Simple health check endpoint
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'OrgFlow API is running',
+    environment: process.env.NODE_ENV || 'development',
+    timestamp: new Date().toISOString(),
+    version: '1.0.0'
+  });
 });
 
 app.listen(port, () => {
