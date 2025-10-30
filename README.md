@@ -466,18 +466,15 @@ Every year, thousands of lives are lost because organs can't be matched and deli
 - **🤝 Seamless coordination** between healthcare providers
 - **🌍 Global accessibility** for underserved regions and developing nations
 
-### **Our Promise**
-Every feature we build, every line of code we write, every partnership we form - **all driven by our mission to make organ donation more efficient, transparent, and effective at saving lives.**
+- **[🧑‍💻 Wilson Ndiko - Hashgraph Developer Certificate](https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System/raw/main/Certificates/NdikoWilsonHederaCertification.pdf)** 
+- **[👩‍💻 Felistus - Hashgraph Developer Certificate](https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System/raw/main/Certificates/Felistus%20Hedera%20certificate.pdf)** 
+>>>>>>> f1025a49f4f0a45be1fb7f629a2c96e0a7bc525b
 
----
-
-## 📜 **Team Certifications**
-
-The OrgFlow team demonstrates deep expertise in Hedera Hashgraph technology through completion of the comprehensive [Hashgraph Developer Course](https://hashgraphdev.com/courses/hashgraph-developer-course).
-
-### **Hedera Developer Certifications**
-- **[🧑‍💻 Wilson Ndiko - Hashgraph Developer Certificate](https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System/blob/main/Certificates/NdikoWilsonHederaCertification.pdf)** - Lead Developer & Hedera Integration Specialist
-- **[👩‍💻 Felistus - Hashgraph Developer Certificate](https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System/blob/main/Certificates/Felistus%20Hedera%20certificate.pdf)** - Co-Lead Developer & Blockchain Architect
+These certifications validate our team's mastery of Hedera distributed ledger technology, consensus services, and enterprise-grade blockchain development - the foundation of OrgFlow's robust organ donation tracking platform.
+=======
+- **[🧑‍💻 Wilson Ndiko - Hashgraph Developer Certificate](https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System/raw/main/Certificates/NdikoWilsonHederaCertification.pdf)** 
+- **[👩‍💻 Felistus - Hashgraph Developer Certificate](https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System/raw/main/Certificates/Felistus%20Hedera%20certificate.pdf)** 
+>>>>>>> f1025a49f4f0a45be1fb7f629a2c96e0a7bc525b
 
 These certifications validate our team's mastery of Hedera distributed ledger technology, consensus services, and enterprise-grade blockchain development - the foundation of OrgFlow's robust organ donation tracking platform.
 
