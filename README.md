@@ -471,15 +471,15 @@ Every feature we build, every line of code we write, every partnership we form -
 
 ---
 
-## 🌟 **Thank You**
+## 📜 **Team Certifications**
 
-This project represents countless hours of work from healthcare professionals, blockchain engineers, and medical researchers who believe in the power of technology to save lives.
+The OrgFlow team demonstrates deep expertise in Hedera Hashgraph technology through completion of the comprehensive [Hashgraph Developer Course](https://hashgraphdev.com/courses/hashgraph-developer-course).
 
-**Special thanks to:**
-- Hedera Hashgraph for enterprise blockchain infrastructure
-- Our beta hospital partners for invaluable medical domain expertise
-- The open-source community for powerful development tools
-- Everyone working tirelessly in organ donation - **you're the real heroes**
+### **Hedera Developer Certifications**
+- **[🧑‍💻 Wilson Ndiko - Hashgraph Developer Certificate](https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System/raw/main/Certificates/NdikoWilsonHederaCertification.pdf)** - Lead Developer & Hedera Integration Specialist
+- **[👩‍💻 Felistus - Hashgraph Developer Certificate](https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System/raw/main/Certificates/Felistus%20Hedera%20certificate.pdf)** - Co-Lead Developer & Blockchain Architect
+
+These certifications validate our team's mastery of Hedera distributed ledger technology, consensus services, and enterprise-grade blockchain development - the foundation of OrgFlow's robust organ donation tracking platform.
 
 ---
 
