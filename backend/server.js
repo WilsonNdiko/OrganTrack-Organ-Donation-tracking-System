@@ -385,26 +385,54 @@ app.get('/organs', async (req, res) => {
       const response = await fetch(`${MIRROR_NODE_BASE_URL}/api/v1/tokens/${process.env.CONTRACT_ADDRESS.split('.').pop()}/nfts?limit=100`);
       if (response.ok) {
         const data = await response.json();
-        const liveOrgans = data.nfts?.map(nft => ({
-          tokenId: parseInt(nft.serial_number),
-          organType: nft.metadata || 'Unknown',
-          bloodType: 'Unknown',
-          status: 'Donated',
-          createdAt: new Date(parseInt(nft.created_timestamp) / 1000000).toISOString()
-        })) || [];
+        const liveOrgans = data.nfts?.map(nft => {
+          const tokenId = parseInt(nft.serial_number);
+
+          // Try to find enriched data from Supabase/local storage
+          const enrichedData = organs.find(o => o.tokenId === tokenId);
+
+          return {
+            tokenId,
+            organType: enrichedData?.organType || nft.metadata || 'Unknown',
+            bloodType: enrichedData?.bloodType || 'Unknown',
+            status: enrichedData?.status || 'Donated',
+            donor: enrichedData?.donor || null,
+            hospital: enrichedData?.hospital || null,
+            recipient: enrichedData?.recipient || null,
+            tokenURI: enrichedData?.tokenURI || null,
+            createdAt: enrichedData?.createdAt
+              ? (typeof enrichedData.createdAt === 'number'
+                  ? new Date(enrichedData.createdAt).toISOString()
+                  : enrichedData.createdAt)
+              : new Date(parseInt(nft.created_timestamp) / 1000000).toISOString()
+          };
+        }) || [];
+
+        console.log(`🔗 Retrieved ${liveOrgans.length} organs from Hedera Mirror Node with enriched data`);
         res.json(liveOrgans);
         return;
       }
     }
-    // Fallback to mock data - ensure createdAt is ISO string
+
+    // Fallback to mock data - ensure createdAt is ISO string and all fields are included
     const formattedOrgans = organs.map(organ => ({
-      ...organ,
+      tokenId: organ.tokenId,
+      organType: organ.organType,
+      bloodType: organ.bloodType,
+      status: organ.status,
+      donor: organ.donor,
+      hospital: organ.hospital,
+      recipient: organ.recipient,
+      tokenURI: organ.tokenURI,
       createdAt: typeof organ.createdAt === 'number'
         ? new Date(organ.createdAt).toISOString()
         : organ.createdAt
     }));
+
+    console.log(`📁 Retrieved ${formattedOrgans.length} organs from local/Supabase storage`);
     res.json(formattedOrgans);
   } catch (error) {
+    console.error('❌ Failed to fetch organs:', error);
     res.status(500).json({ error: error.message });
   }
 });
