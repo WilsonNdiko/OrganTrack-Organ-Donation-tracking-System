@@ -32,7 +32,7 @@ const Navigation = () => {
               <div className="absolute inset-0 bg-primary/20 rounded-full blur-xl group-hover:bg-primary/30 transition-all" />
             </div>
             <span className="text-2xl font-display font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              OrganTrack
+              OrgFlow
             </span>
           </Link>
 
