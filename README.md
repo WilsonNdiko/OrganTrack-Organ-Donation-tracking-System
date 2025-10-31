@@ -465,7 +465,7 @@ Every feature we build, every line of code we write, every partnership we form -
 ---
 
 ## 🎥 Pitch Deck  
-Explore our full presentation detailing the vision, impact, and technology behind OrgFlow here: [OrgFlow Pitch Deck](https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System/blob/main/OrgFlow%20Pitch%20Deck.pptx)
+Explore our full presentation detailing the vision, impact, and technology behind OrgFlow here: https://drive.google.com/file/d/10FBOzxZYiPFUAznpfXJGwqcbbvBOqcga/view
 
 ---
 
