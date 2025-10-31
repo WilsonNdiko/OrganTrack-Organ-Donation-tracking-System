@@ -566,6 +566,37 @@ app.put('/updateOrganRequest', async (req, res) => {
   }
 });
 
+// DELETE /clearOrgans - Clear all existing organs (for development/testing)
+app.delete('/clearOrgans', async (req, res) => {
+  try {
+    organs = [];
+    nextTokenId = 0;
+
+    // Clear file storage
+    if (fs.existsSync(ORGANS_FILE)) {
+      fs.unlinkSync(ORGANS_FILE);
+    }
+
+    // Clear Supabase if available
+    if (supabase) {
+      await supabase.from('organs').delete().neq('token_id', -1); // Delete all records
+    }
+
+    // Reinitialize with fresh mock data
+    initializeMockData();
+
+    console.log('🗑️  Cleared all existing organs and reinitialized with fresh data');
+    res.json({
+      success: true,
+      message: 'All organs cleared and fresh mock data initialized',
+      organsCount: organs.length
+    });
+  } catch (error) {
+    console.error('❌ Failed to clear organs:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // GET /health - Simple health check endpoint
 app.get('/health', (req, res) => {
   res.json({

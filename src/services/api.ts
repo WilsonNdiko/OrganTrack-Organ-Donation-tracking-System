@@ -130,4 +130,12 @@ export const api = {
     });
     return response.json();
   },
+
+  // Development/Testing utilities
+  clearOrgans: async () => {
+    const response = await fetch(`${API_BASE_URL}/clearOrgans`, {
+      method: 'DELETE',
+    });
+    return response.json();
+  },
 };
