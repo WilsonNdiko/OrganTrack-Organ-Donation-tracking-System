@@ -18,6 +18,14 @@ export interface TransferRequest {
 export interface TransplantRequest {
   tokenId: number;
   recipient: string;
+  recipientName?: string;
+  recipientAge?: number;
+  recipientBloodType?: string;
+  recipientHospital?: string;
+  receiptNumber?: string;
+  transplantDate?: string;
+  surgeon?: string;
+  notes?: string;
 }
 
 export interface Organ {
@@ -128,6 +136,12 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     });
+    return response.json();
+  },
+
+  // Ledger management
+  getLedger: async (): Promise<any[]> => {
+    const response = await fetch(`${API_BASE_URL}/ledger`);
     return response.json();
   },
 

@@ -1,75 +1,74 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Shield, ExternalLink } from "lucide-react";
+import { Shield, ExternalLink, RefreshCw } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import HeartbeatDivider from "@/components/HeartbeatDivider";
+import { api } from "../../../src/services/api";
 
-interface Transaction {
+interface LedgerEvent {
   id: string;
-  type: string;
-  organ: string;
+  eventType?: string;
+  type?: string;
+  organId?: number;
+  organType?: string;
+  bloodType?: string;
+  hospital?: string;
+  donor?: string;
+  recipient?: string;
+  surgeon?: string;
+  receiptNumber?: string;
+  transplantDate?: string;
   timestamp: string;
   txHash: string;
+  details?: string;
 }
 
 const Ledger = () => {
-  const transactions: Transaction[] = [
-    {
-      id: "1",
-      type: "Transplant Completed",
-      organ: "Organ NFT #124",
-      timestamp: "2024-01-27 14:03 UTC",
-      txHash: "0x7d5f...c92a",
-    },
-    {
-      id: "2",
-      type: "Transit Started",
-      organ: "Organ NFT #127",
-      timestamp: "2024-01-27 13:45 UTC",
-      txHash: "0x9a2b...d14c",
-    },
-    {
-      id: "3",
-      type: "Quality Verified",
-      organ: "Organ NFT #129",
-      timestamp: "2024-01-27 13:20 UTC",
-      txHash: "0x3c8e...a76b",
-    },
-    {
-      id: "4",
-      type: "Donation Registered",
-      organ: "Organ NFT #131",
-      timestamp: "2024-01-27 12:55 UTC",
-      txHash: "0x5f1d...e49a",
-    },
-    {
-      id: "5",
-      type: "Transplant Completed",
-      organ: "Organ NFT #122",
-      timestamp: "2024-01-27 12:30 UTC",
-      txHash: "0x2e7a...b38c",
-    },
-    {
-      id: "6",
-      type: "Transit Started",
-      organ: "Organ NFT #125",
-      timestamp: "2024-01-27 11:45 UTC",
-      txHash: "0x8b3f...c25d",
-    },
-    {
-      id: "7",
-      type: "Quality Verified",
-      organ: "Organ NFT #128",
-      timestamp: "2024-01-27 11:10 UTC",
-      txHash: "0x4d9c...f67e",
-    },
-    {
-      id: "8",
-      type: "Donation Registered",
-      organ: "Organ NFT #130",
-      timestamp: "2024-01-27 10:30 UTC",
-      txHash: "0x6a2e...d91b",
-    },
-  ];
+  const [ledgerEvents, setLedgerEvents] = useState<LedgerEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch ledger events from backend
+  const fetchLedgerEvents = async () => {
+    try {
+      console.log("🔄 Fetching ledger events from backend...");
+      const data = await api.getLedger();
+      console.log("📖 Received ledger events:", data?.length || 0);
+      setLedgerEvents(data || []);
+      setLoading(false);
+    } catch (error) {
+      console.error("❌ Failed to fetch ledger events:", error);
+      setLedgerEvents([]);
+      setLoading(false);
+    }
+  };
+
+  // Load ledger events on component mount
+  useEffect(() => {
+    fetchLedgerEvents();
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchLedgerEvents();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Format ledger event according to specification
+  const formatLedgerEvent = (event: LedgerEvent): string => {
+    const date = new Date(event.timestamp).toISOString().split('T')[0]; // YYYY-MM-DD format
+    const type = event.eventType || event.type || '';
+
+    if (type === 'OrganTransplanted') {
+      return `[${date}] OrganTransplanted - ${event.organType} - Surgeon: ${event.surgeon} - Receipt: #${event.receiptNumber}`;
+    } else if (type === 'organ_created' || type === 'OrganRegistered') {
+      return `[${date}] OrganRegistered - ${event.organType} - Donor: ${event.donor} → Recipient: ${event.recipient || 'Pending'} (${event.hospital})`;
+    } else if (type === 'organ_transferred') {
+      return `[${date}] OrganTransferred - ${event.organType} - From: ${event.hospital}`;
+    } else {
+      return `[${date}] ${type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} - ${event.organType}`;
+    }
+  };
 
   return (
     <div className="min-h-screen">
@@ -98,32 +97,38 @@ const Ledger = () => {
           <CardContent>
             <ScrollArea className="h-[600px] pr-4">
               <div className="space-y-4">
-                {transactions.map((tx, index) => (
-                  <div
-                    key={tx.id}
-                    className="flex items-start justify-between p-4 rounded-lg bg-accent/50 hover:bg-accent transition-all animate-slide-up border border-border/50"
-                    style={{ animationDelay: `${index * 0.05}s` }}
-                  >
-                    <div className="flex-1">
+                {loading ? (
+                  <div className="text-center py-12">
+                    <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4" />
+                    <p>Loading ledger events from Hedera...</p>
+                  </div>
+                ) : ledgerEvents.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Shield className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
+                    <p className="text-muted-foreground">No ledger events recorded yet</p>
+                  </div>
+                ) : (
+                  ledgerEvents.map((event, index) => (
+                    <div
+                      key={event.id}
+                      className="p-4 rounded-lg bg-accent/50 hover:bg-accent transition-all animate-slide-up border border-border/50"
+                      style={{ animationDelay: `${index * 0.05}s` }}
+                    >
                       <div className="flex items-center gap-2 mb-2">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary border border-primary/20">
-                          {tx.type}
+                        <Shield className="w-4 h-4 text-primary" />
+                        <span className="text-sm font-mono text-foreground">
+                          {formatLedgerEvent(event)}
                         </span>
                       </div>
-                      <p className="text-sm font-medium text-foreground">{tx.organ}</p>
-                      <p className="text-xs text-muted-foreground mt-1">{tx.timestamp}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <div className="text-right">
-                        <p className="text-xs text-muted-foreground mb-1">Transaction Hash</p>
-                        <code className="text-xs font-mono text-foreground bg-muted px-2 py-1 rounded">
-                          {tx.txHash}
-                        </code>
+                      <div className="flex justify-between items-center">
+                        <p className="text-xs text-muted-foreground">
+                          Transaction ID: {event.txHash.slice(0, 16)}...{event.txHash.slice(-8)}
+                        </p>
+                        <ExternalLink className="w-4 h-4 text-muted-foreground hover:text-primary transition-colors cursor-pointer" />
                       </div>
-                      <ExternalLink className="w-4 h-4 text-muted-foreground hover:text-primary transition-colors cursor-pointer" />
                     </div>
-                  </div>
-                ))}
+                  ))
+                )}
               </div>
             </ScrollArea>
           </CardContent>

@@ -102,9 +102,11 @@ const abi = [
 
 let organs = []; // Mock storage
 let nextTokenId = 0;
+let ledger = []; // Ledger storage for tracking all events
 
 // File-based persistent storage to prevent data loss
 const ORGANS_FILE = './organs.json';
+const LEDGER_FILE = './ledger.json';
 
 function loadOrgansFromFile() {
   try {
@@ -274,12 +276,56 @@ function saveOrgansToFile() {
   }
 }
 
+// Ledger functions
+function loadLedgerFromFile() {
+  try {
+    if (fs.existsSync(LEDGER_FILE)) {
+      const data = fs.readFileSync(LEDGER_FILE, 'utf8');
+      const parsed = JSON.parse(data);
+      ledger = parsed.ledger || [];
+      console.log(`📖 Loaded ${ledger.length} ledger events from persistent storage`);
+    } else {
+      console.log('📖 No ledger file found, initializing empty ledger');
+    }
+  } catch (error) {
+    console.error('❌ Failed to load ledger from file:', error.message);
+  }
+}
+
+function saveLedgerToFile() {
+  try {
+    const data = JSON.stringify({
+      ledger,
+      lastUpdated: new Date().toISOString()
+    }, null, 2);
+    fs.writeFileSync(LEDGER_FILE, data);
+    console.log(`📝 Saved ${ledger.length} ledger events to persistent storage`);
+  } catch (error) {
+    console.error('❌ Failed to save ledger to file:', error.message);
+  }
+}
+
+function recordLedgerEvent(event) {
+  const ledgerEvent = {
+    id: `LEDGER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    ...event,
+    timestamp: event.timestamp || new Date().toISOString(),
+    txHash: event.txHash || `mock_${event.type}_${event.organId || 'unknown'}`
+  };
+
+  ledger.push(ledgerEvent);
+  saveLedgerToFile();
+  console.log(`📋 Recorded ledger event: ${event.type} for organ ${event.organId || 'unknown'}`);
+}
+
 // Initialize data
 if (supabase) {
   loadOrgansFromSupabase();
 } else {
   loadOrgansFromFile();
 }
+
+loadLedgerFromFile(); // Load ledger data
 
 // Mock implementation (only if no data exists)
 async function initializeMockData() {
@@ -333,7 +379,7 @@ async function fetchTransactionInfo(txHash) {
 // POST /createOrgan - Mint new organ NFT
 app.post('/createOrgan', async (req, res) => {
   try {
-    const { donor, organType, bloodType, tokenURI, hospital } = req.body;
+    const { donor, organType, bloodType, tokenURI, hospital, recipientName, recipientBloodType, recipientContact } = req.body;
     if (organNFT) {
       const tx = await organNFT.mintOrgan(donor, organType, bloodType, tokenURI || '');
       await tx.wait();
@@ -359,6 +405,19 @@ app.post('/createOrgan', async (req, res) => {
       } else {
         saveOrgansToFile();
       }
+
+      // Record in ledger
+      recordLedgerEvent({
+        type: 'OrganRegistered',
+        organId: organ.tokenId,
+        organType: organ.organType,
+        bloodType: organ.bloodType,
+        hospital: organ.hospital,
+        donor: organ.donor,
+        recipient: recipientName || 'Pending',
+        timestamp: new Date().toISOString(),
+        details: `Organ ${organ.organType} (${organ.bloodType}) registered at ${organ.hospital} for recipient ${recipientName || 'Pending'}`
+      });
 
       res.json({ success: true, txHash: `mock_${organ.tokenId}`, tokenId: organ.tokenId });
     }
@@ -391,6 +450,16 @@ app.post('/transferOrgan', async (req, res) => {
         saveOrgansToFile();
       }
 
+      // Record in ledger
+      recordLedgerEvent({
+        type: 'organ_transferred',
+        organId: tokenId,
+        organType: organ.organType,
+        hospital: hospital,
+        timestamp: new Date().toISOString(),
+        details: `Organ ${organ.organType} (${tokenId}) transferred to ${hospital}`
+      });
+
       res.json({ success: true, txHash: `mock_transfer_${tokenId}` });
     }
   } catch (error) {
@@ -401,7 +470,7 @@ app.post('/transferOrgan', async (req, res) => {
 // POST /transplantOrgan - Transplant organ to recipient
 app.post('/transplantOrgan', async (req, res) => {
   try {
-    const { tokenId, recipient } = req.body;
+    const { tokenId, recipient, recipientName, recipientAge, recipientBloodType, recipientHospital, receiptNumber, transplantDate, surgeon, notes } = req.body;
     if (organNFT) {
       const tx = await organNFT.transplant(tokenId, recipient);
       await tx.wait();
@@ -414,13 +483,42 @@ app.post('/transplantOrgan', async (req, res) => {
       }
       organ.status = 'Transplanted';
       organ.recipient = recipient;
+      organ.recipientDetails = {
+        name: recipientName,
+        age: recipientAge,
+        bloodType: recipientBloodType,
+        hospital: recipientHospital,
+        transplantDate: transplantDate || new Date().toISOString(),
+        surgeon: surgeon,
+        notes: notes
+      };
 
       // Update in Supabase if available, otherwise save to file
       if (supabase) {
-        await updateOrganInSupabase(tokenId, { status: 'Transplanted', recipient });
+        await updateOrganInSupabase(tokenId, {
+          status: 'Transplanted',
+          recipient,
+          recipientDetails: organ.recipientDetails
+        });
       } else {
         saveOrgansToFile();
       }
+
+      // Record in ledger
+      recordLedgerEvent({
+        type: 'OrganTransplanted',
+        organId: tokenId,
+        organType: organ.organType,
+        bloodType: organ.bloodType,
+        donor: organ.donor,
+        hospital: recipientHospital,
+        recipient: recipientName,
+        surgeon: surgeon,
+        receiptNumber: receiptNumber,
+        transplantDate: transplantDate,
+        timestamp: new Date().toISOString(),
+        details: `Organ ${organ.organType} (${organ.bloodType}) transplanted to ${recipientName} at ${recipientHospital} by ${surgeon}`
+      });
 
       res.json({ success: true, txHash: `mock_transplant_${tokenId}` });
     }
@@ -657,6 +755,19 @@ app.get('/debug', async (req, res) => {
     nextTokenId,
     timestamp: new Date().toISOString()
   });
+});
+
+// GET /ledger - Get all ledger events
+app.get('/ledger', (req, res) => {
+  try {
+    // Sort ledger events by timestamp (most recent first)
+    const sortedLedger = ledger.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    console.log(`📖 Retrieved ${sortedLedger.length} ledger events`);
+    res.json(sortedLedger);
+  } catch (error) {
+    console.error('❌ Failed to fetch ledger:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // GET /health - Simple health check endpoint

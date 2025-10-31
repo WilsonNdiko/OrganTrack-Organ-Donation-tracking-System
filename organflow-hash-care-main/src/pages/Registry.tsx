@@ -41,6 +41,16 @@ const Registry = () => {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isTransferDialogOpen, setIsTransferDialogOpen] = useState(false);
   const [isTransplantDialogOpen, setIsTransplantDialogOpen] = useState(false);
+  const [transplantData, setTransplantData] = useState({
+    recipientName: "",
+    recipientAge: "",
+    recipientBloodType: "",
+    recipientHospital: "",
+    surgeon: "",
+    receiptNumber: "",
+    transplantDate: "",
+    notes: "",
+  });
   const [isRequestDialogOpen, setIsRequestDialogOpen] = useState(false);
   const [isViewRequestsOpen, setIsViewRequestsOpen] = useState(false);
   const [selectedOrgan, setSelectedOrgan] = useState<BackendOrgan | null>(null);
@@ -54,6 +64,9 @@ const Registry = () => {
     donorId: "",
     bloodType: "",
     location: "",
+    recipientName: "",
+    recipientBloodType: "",
+    recipientContact: "",
   });
   const { toast } = useToast();
 
@@ -111,7 +124,7 @@ const Registry = () => {
       });
 
       // Reset form and close dialog
-      setFormData({ type: "", donorId: "", bloodType: "", location: "" });
+      setFormData({ type: "", donorId: "", bloodType: "", location: "", recipientName: "", recipientBloodType: "", recipientContact: "" });
       setIsDialogOpen(false);
 
       // Refresh data
@@ -188,10 +201,26 @@ const Registry = () => {
   const transplantOrgan = async () => {
     if (!selectedOrgan) return;
 
+    // Validate required fields
+    if (!transplantData.recipientName || !transplantData.recipientHospital || !transplantData.surgeon) {
+      toast({
+        title: "Missing Information",
+        description: "Please fill in all required recipient details.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       await api.transplantOrgan({
         tokenId: selectedOrgan.tokenId,
-        recipient: selectedOrgan.donor || "0x0000000000000000000000000000000000000000", // Use donor as recipient for demo
+        recipient: `0x${Date.now().toString(16).padEnd(40, '0')}`, // Generate recipient address
+        recipientName: transplantData.recipientName,
+        recipientAge: parseInt(transplantData.recipientAge) || undefined,
+        recipientBloodType: transplantData.recipientBloodType,
+        recipientHospital: transplantData.recipientHospital,
+        surgeon: transplantData.surgeon,
+        notes: transplantData.notes,
       });
 
       // Mark that we made a change to prevent auto-refresh
@@ -210,11 +239,21 @@ const Registry = () => {
 
       toast({
         title: "💚 Transplant Successful",
-        description: `${selectedOrgan.organType} successfully transplanted`,
+        description: `${selectedOrgan.organType} successfully transplanted to ${transplantData.recipientName}`,
       });
 
       setIsTransplantDialogOpen(false);
       setSelectedOrgan(null);
+      setTransplantData({
+        recipientName: "",
+        recipientAge: "",
+        recipientBloodType: "",
+        recipientHospital: "",
+        surgeon: "",
+        receiptNumber: "",
+        transplantDate: "",
+        notes: "",
+      });
 
       // Refresh data from backend after a short delay
       setTimeout(() => fetchOrgans(), 1000);
@@ -427,79 +466,146 @@ const Registry = () => {
                   Register New Organ
                 </Button>
               </DialogTrigger>
-              <DialogContent className="sm:max-w-[500px]">
+              <DialogContent className="sm:max-w-[550px]">
                 <DialogHeader>
                   <DialogTitle>Register New Organ</DialogTitle>
                   <DialogDescription>
-                    Register a new organ as an NFT on Hedera Hashgraph. All fields are required.
+                    Register a new organ as an NFT on Hedera Hashgraph. Required fields marked with *.
                   </DialogDescription>
                 </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="type">Organ Type</Label>
-                    <Select
-                      value={formData.type}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, type: value })
-                      }
-                    >
-                      <SelectTrigger id="type">
-                        <SelectValue placeholder="Select organ type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Heart">Heart</SelectItem>
-                        <SelectItem value="Kidney">Kidney</SelectItem>
-                        <SelectItem value="Liver">Liver</SelectItem>
-                        <SelectItem value="Lung">Lung</SelectItem>
-                        <SelectItem value="Pancreas">Pancreas</SelectItem>
-                        <SelectItem value="Intestine">Intestine</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <div className="grid gap-6 py-4">
+                  {/* Required Fields */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="type">Organ Type *</Label>
+                      <Select
+                        value={formData.type}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, type: value })
+                        }
+                      >
+                        <SelectTrigger id="type">
+                          <SelectValue placeholder="Select organ type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Heart">Heart</SelectItem>
+                          <SelectItem value="Kidney">Kidney</SelectItem>
+                          <SelectItem value="Liver">Liver</SelectItem>
+                          <SelectItem value="Lung">Lung</SelectItem>
+                          <SelectItem value="Pancreas">Pancreas</SelectItem>
+                          <SelectItem value="Intestine">Intestine</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="donorId">Donor ID *</Label>
+                      <Input
+                        id="donorId"
+                        placeholder="D-XXXX"
+                        value={formData.donorId}
+                        onChange={(e) =>
+                          setFormData({ ...formData, donorId: e.target.value })
+                        }
+                      />
+                    </div>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="donorId">Donor ID</Label>
-                    <Input
-                      id="donorId"
-                      placeholder="D-XXXX"
-                      value={formData.donorId}
-                      onChange={(e) =>
-                        setFormData({ ...formData, donorId: e.target.value })
-                      }
-                    />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="bloodType">Blood Type *</Label>
+                      <Select
+                        value={formData.bloodType}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, bloodType: value })
+                        }
+                      >
+                        <SelectTrigger id="bloodType">
+                          <SelectValue placeholder="Select blood type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="A+">A+</SelectItem>
+                          <SelectItem value="A-">A-</SelectItem>
+                          <SelectItem value="B+">B+</SelectItem>
+                          <SelectItem value="B-">B-</SelectItem>
+                          <SelectItem value="AB+">AB+</SelectItem>
+                          <SelectItem value="AB-">AB-</SelectItem>
+                          <SelectItem value="O+">O+</SelectItem>
+                          <SelectItem value="O-">O-</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="location">Hospital Location *</Label>
+                      <Select
+                        value={formData.location}
+                        onValueChange={(value) =>
+                          setFormData({ ...formData, location: value })
+                        }
+                      >
+                        <SelectTrigger id="location">
+                          <SelectValue placeholder="Select hospital" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Nairobi General">Nairobi General</SelectItem>
+                          <SelectItem value="Kenyatta Hospital">Kenyatta Hospital</SelectItem>
+                          <SelectItem value="Coast Medical">Coast Medical</SelectItem>
+                          <SelectItem value="Aga Khan">Aga Khan</SelectItem>
+                          <SelectItem value="Mombasa Referral">Mombasa Referral</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="bloodType">Blood Type</Label>
-                    <Select
-                      value={formData.bloodType}
-                      onValueChange={(value) =>
-                        setFormData({ ...formData, bloodType: value })
-                      }
-                    >
-                      <SelectTrigger id="bloodType">
-                        <SelectValue placeholder="Select blood type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="A+">A+</SelectItem>
-                        <SelectItem value="A-">A-</SelectItem>
-                        <SelectItem value="B+">B+</SelectItem>
-                        <SelectItem value="B-">B-</SelectItem>
-                        <SelectItem value="AB+">AB+</SelectItem>
-                        <SelectItem value="AB-">AB-</SelectItem>
-                        <SelectItem value="O+">O+</SelectItem>
-                        <SelectItem value="O-">O-</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="location">Hospital Location</Label>
-                    <Input
-                      id="location"
-                      placeholder="Hospital name"
-                      value={formData.location}
-                      onChange={(e) =>
-                        setFormData({ ...formData, location: e.target.value })
-                      }
-                    />
+
+                  {/* Optional Recipient Details */}
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-medium text-muted-foreground mb-3">Recipient Details (Optional)</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid gap-2">
+                        <Label htmlFor="recipientName">Recipient Name</Label>
+                        <Input
+                          id="recipientName"
+                          placeholder="Full name of recipient"
+                          value={formData.recipientName}
+                          onChange={(e) =>
+                            setFormData({ ...formData, recipientName: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="grid gap-2">
+                        <Label htmlFor="recipientBloodType">Recipient Blood Group</Label>
+                        <Select
+                          value={formData.recipientBloodType}
+                          onValueChange={(value) =>
+                            setFormData({ ...formData, recipientBloodType: value })
+                          }
+                        >
+                          <SelectTrigger id="recipientBloodType">
+                            <SelectValue placeholder="Select blood type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="A+">A+</SelectItem>
+                            <SelectItem value="A-">A-</SelectItem>
+                            <SelectItem value="B+">B+</SelectItem>
+                            <SelectItem value="B-">B-</SelectItem>
+                            <SelectItem value="AB+">AB+</SelectItem>
+                            <SelectItem value="AB-">AB-</SelectItem>
+                            <SelectItem value="O+">O+</SelectItem>
+                            <SelectItem value="O-">O-</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                    <div className="grid gap-2 mt-4">
+                      <Label htmlFor="recipientContact">Recipient Contact</Label>
+                      <Input
+                        id="recipientContact"
+                        placeholder="+254 XXX XXX XXX"
+                        value={formData.recipientContact}
+                        onChange={(e) =>
+                          setFormData({ ...formData, recipientContact: e.target.value })
+                        }
+                      />
+                    </div>
                   </div>
                 </div>
                 <div className="flex justify-end gap-3">
@@ -807,21 +913,126 @@ const Registry = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Transplant Confirmation Dialog */}
-        <AlertDialog open={isTransplantDialogOpen} onOpenChange={setIsTransplantDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Confirm Transplant Completion</AlertDialogTitle>
-              <AlertDialogDescription>
-                Mark {selectedOrgan?.organType} ({selectedOrgan?.tokenId}) as successfully transplanted at hospital. This action will update the organ status on Hedera Hashgraph.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={transplantOrgan}>Confirm Transplant</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        {/* Transplant Dialog */}
+        <Dialog open={isTransplantDialogOpen} onOpenChange={setIsTransplantDialogOpen}>
+          <DialogContent className="sm:max-w-[600px]">
+            <DialogHeader>
+              <DialogTitle>Complete Organ Transplant</DialogTitle>
+              <DialogDescription>
+                Record transplant details for {selectedOrgan?.organType} ({selectedOrgan?.tokenId}). All required fields must be completed.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="recipientName">Recipient Name *</Label>
+                <Input
+                  id="recipientName"
+                  placeholder="Full name of recipient"
+                  value={transplantData.recipientName}
+                  onChange={(e) => setTransplantData({ ...transplantData, recipientName: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="recipientAge">Age</Label>
+                  <Input
+                    id="recipientAge"
+                    type="number"
+                    placeholder="Age"
+                    value={transplantData.recipientAge}
+                    onChange={(e) => setTransplantData({ ...transplantData, recipientAge: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="recipientBloodType">Blood Type</Label>
+                  <Select
+                    value={transplantData.recipientBloodType}
+                    onValueChange={(value) => setTransplantData({ ...transplantData, recipientBloodType: value })}
+                  >
+                    <SelectTrigger id="recipientBloodType">
+                      <SelectValue placeholder="Select" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="A+">A+</SelectItem>
+                      <SelectItem value="A-">A-</SelectItem>
+                      <SelectItem value="B+">B+</SelectItem>
+                      <SelectItem value="B-">B-</SelectItem>
+                      <SelectItem value="AB+">AB+</SelectItem>
+                      <SelectItem value="AB-">AB-</SelectItem>
+                      <SelectItem value="O+">O+</SelectItem>
+                      <SelectItem value="O-">O-</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="recipientHospital">Hospital *</Label>
+                <Select
+                  value={transplantData.recipientHospital}
+                  onValueChange={(value) => setTransplantData({ ...transplantData, recipientHospital: value })}
+                >
+                  <SelectTrigger id="recipientHospital">
+                    <SelectValue placeholder="Select hospital" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="St. Mary's General Hospital">St. Mary's General Hospital</SelectItem>
+                    <SelectItem value="City Medical Center">City Medical Center</SelectItem>
+                    <SelectItem value="University Hospital">University Hospital</SelectItem>
+                    <SelectItem value="Regional Health Center">Regional Health Center</SelectItem>
+                    <SelectItem value="Metropolitan Medical Group">Metropolitan Medical Group</SelectItem>
+                    <SelectItem value="Central Hospital">Central Hospital</SelectItem>
+                    <SelectItem value="Eastside Medical Center">Eastside Medical Center</SelectItem>
+                    <SelectItem value="West Valley Hospital">West Valley Hospital</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="receiptNumber">Receipt Number</Label>
+                  <Input
+                    id="receiptNumber"
+                    placeholder="TX10023"
+                    value={transplantData.receiptNumber}
+                    onChange={(e) => setTransplantData({ ...transplantData, receiptNumber: e.target.value })}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="transplantDate">Transplant Date</Label>
+                  <Input
+                    id="transplantDate"
+                    type="date"
+                    value={transplantData.transplantDate}
+                    onChange={(e) => setTransplantData({ ...transplantData, transplantDate: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="surgeon">Surgeon *</Label>
+                <Input
+                  id="surgeon"
+                  placeholder="Dr. Surgeon Name"
+                  value={transplantData.surgeon}
+                  onChange={(e) => setTransplantData({ ...transplantData, surgeon: e.target.value })}
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="notes">Additional Notes</Label>
+                <Input
+                  id="notes"
+                  placeholder="Any additional transplant details"
+                  value={transplantData.notes}
+                  onChange={(e) => setTransplantData({ ...transplantData, notes: e.target.value })}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setIsTransplantDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={transplantOrgan}>Complete Transplant</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
