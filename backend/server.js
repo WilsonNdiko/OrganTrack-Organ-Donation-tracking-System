@@ -470,16 +470,11 @@ app.post('/transferOrgan', async (req, res) => {
 // POST /transplantOrgan - Transplant organ to recipient
 app.post('/transplantOrgan', async (req, res) => {
   try {
-    const { tokenId, recipient, recipientName, recipientAge, recipientBloodType, recipientHospital, transplantDate, surgeon, notes } = req.body;
-
-    // Generate unique receipt ID
-    const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, ''); // YYYYMMDD format
-    const receiptId = `RCP-${dateStr}-${String(Math.floor(Math.random() * 1000)).padStart(3, '0')}`;
-
+    const { tokenId, recipient, recipientName, recipientAge, recipientBloodType, recipientHospital, receiptNumber, transplantDate, surgeon, notes } = req.body;
     if (organNFT) {
       const tx = await organNFT.transplant(tokenId, recipient);
       await tx.wait();
-      res.json({ success: true, txHash: tx.hash, receiptId });
+      res.json({ success: true, txHash: tx.hash });
     } else {
       // Mock
       const organ = organs.find(o => o.tokenId === tokenId);
@@ -495,7 +490,6 @@ app.post('/transplantOrgan', async (req, res) => {
         hospital: recipientHospital,
         transplantDate: transplantDate || new Date().toISOString(),
         surgeon: surgeon,
-        receiptId: receiptId, // Store receipt ID in recipient details
         notes: notes
       };
 
@@ -510,7 +504,7 @@ app.post('/transplantOrgan', async (req, res) => {
         saveOrgansToFile();
       }
 
-      // Record in ledger with generated receipt ID
+      // Record in ledger
       recordLedgerEvent({
         type: 'OrganTransplanted',
         organId: tokenId,
@@ -520,18 +514,13 @@ app.post('/transplantOrgan', async (req, res) => {
         hospital: recipientHospital,
         recipient: recipientName,
         surgeon: surgeon,
-        receiptId: receiptId,
+        receiptNumber: receiptNumber,
         transplantDate: transplantDate,
         timestamp: new Date().toISOString(),
-        details: `Organ ${organ.organType} (${organ.bloodType}) transplanted to ${recipientName} at ${recipientHospital} by ${surgeon}. Receipt: ${receiptId}`
+        details: `Organ ${organ.organType} (${organ.bloodType}) transplanted to ${recipientName} at ${recipientHospital} by ${surgeon}`
       });
 
-      res.json({
-        success: true,
-        txHash: `mock_transplant_${tokenId}`,
-        receiptId: receiptId,
-        message: `Transplant completed successfully. Receipt ID: ${receiptId}`
-      });
+      res.json({ success: true, txHash: `mock_transplant_${tokenId}` });
     }
   } catch (error) {
     res.status(500).json({ error: error.message });

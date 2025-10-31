@@ -212,7 +212,7 @@ const Registry = () => {
     }
 
     try {
-      const transplantResult = await api.transplantOrgan({
+      await api.transplantOrgan({
         tokenId: selectedOrgan.tokenId,
         recipient: `0x${Date.now().toString(16).padEnd(40, '0')}`, // Generate recipient address
         recipientName: transplantData.recipientName,
@@ -237,11 +237,9 @@ const Registry = () => {
           : organ
       ));
 
-      // Show success message with receipt ID
-      const receiptId = transplantResult.receiptId;
       toast({
         title: "💚 Transplant Successful",
-        description: `${selectedOrgan.organType} successfully transplanted to ${transplantData.recipientName}. Receipt ID: ${receiptId}`,
+        description: `${selectedOrgan.organType} successfully transplanted to ${transplantData.recipientName}`,
       });
 
       setIsTransplantDialogOpen(false);
