@@ -580,16 +580,14 @@ app.delete('/clearOrgans', async (req, res) => {
     // Clear Supabase if available
     if (supabase) {
       await supabase.from('organs').delete().neq('token_id', -1); // Delete all records
+      await supabase.from('organ_requests').delete().neq('id', -1); // Also clear requests
     }
 
-    // Reinitialize with fresh mock data
-    initializeMockData();
-
-    console.log('🗑️  Cleared all existing organs and reinitialized with fresh data');
+    console.log('🗑️  Cleared all existing organs and requests - database is now empty');
     res.json({
       success: true,
-      message: 'All organs cleared and fresh mock data initialized',
-      organsCount: organs.length
+      message: 'All organs and requests cleared - database is now completely empty',
+      organsCount: 0
     });
   } catch (error) {
     console.error('❌ Failed to clear organs:', error);
