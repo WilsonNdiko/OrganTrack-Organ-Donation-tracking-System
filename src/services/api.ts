@@ -28,6 +28,13 @@ export interface TransplantRequest {
   notes?: string;
 }
 
+export interface TransplantResponse {
+  success: boolean;
+  txHash: string;
+  receiptId: string;
+  message?: string;
+}
+
 export interface Organ {
   tokenId: number;
   organType: string;
@@ -86,7 +93,7 @@ export const api = {
     return response.json();
   },
 
-  transplantOrgan: async (data: TransplantRequest) => {
+  transplantOrgan: async (data: TransplantRequest): Promise<TransplantResponse> => {
     const response = await fetch(`${API_BASE_URL}/transplantOrgan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
