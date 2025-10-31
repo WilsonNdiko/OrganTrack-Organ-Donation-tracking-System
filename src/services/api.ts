@@ -1,6 +1,6 @@
 // API service for backend connection
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://orgflow-backend-t55x.onrender.com';
 
 export interface CreateOrganRequest {
   donor: string;
