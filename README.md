@@ -435,13 +435,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 ---
 
-## 📞 **Support & Contact**
-
-### **For Healthcare Professionals**
-- **📧 Email:** healthcare@orgflow.org
-- **📱 Hotline:** 1-800-ORG-FLOW (Priority Support)
-- **📚 Documentation:** [Medical Staff Guide](docs/healthcare-guide.md)
-
 ### **For Developers & Technologists**
 - **💻 GitHub Issues:** Bug reports and technical support
 - **📖 API Documentation:** [Technical Docs](docs/api.md)
@@ -472,7 +465,7 @@ Every feature we build, every line of code we write, every partnership we form -
 ---
 
 ## 🎥 Pitch Deck  
-You can view our presentation here: [OrgFlow Pitch Deck](https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System/blob/main/OrgFlow%20Pitch%20Deck.pptx)
+Explore our full presentation detailing the vision, impact, and technology behind OrgFlow here: [OrgFlow Pitch Deck](https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System/blob/main/OrgFlow%20Pitch%20Deck.pptx)
 
 ---
 
