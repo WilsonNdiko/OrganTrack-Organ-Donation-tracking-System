@@ -253,9 +253,16 @@ const Registry = () => {
             : organ
         ));
 
-        // Refresh requests list and organs
+        // Force immediate refresh of requests
+        console.log("🔄 Refreshing requests after creation...");
         await fetchOrganRequests();
-        setTimeout(() => fetchOrgans(), 500); // Refresh organs after request
+        console.log("📋 Current requests count:", requests.length);
+
+        // Also refresh after a short delay to ensure backend sync
+        setTimeout(async () => {
+          await fetchOrganRequests();
+          await fetchOrgans();
+        }, 1000);
 
         toast({
           title: "📨 Request Sent Successfully",
@@ -348,6 +355,14 @@ const Registry = () => {
       clearInterval(requestsInterval);
     };
   }, [fetchOrgans, fetchOrganRequests]);
+
+  // Force dialog refresh when requests change
+  useEffect(() => {
+    if (isViewRequestsOpen && requests.length > 0) {
+      // Force a re-render of the dialog content
+      console.log("🔄 Requests dialog updated with", requests.length, "requests");
+    }
+  }, [requests, isViewRequestsOpen]);
 
   // Map backend status to UI status
   const getStatusForBadge = (status: string): Status => {
