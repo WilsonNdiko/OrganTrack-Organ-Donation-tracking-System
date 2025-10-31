@@ -103,10 +103,12 @@ const abi = [
 let organs = []; // Mock storage
 let nextTokenId = 0;
 let ledger = []; // Ledger storage for tracking all events
+let requests = []; // Organ requests storage
 
 // File-based persistent storage to prevent data loss
 const ORGANS_FILE = './organs.json';
 const LEDGER_FILE = './ledger.json';
+const REQUESTS_FILE = './requests.json';
 
 function loadOrgansFromFile() {
   try {
@@ -276,6 +278,35 @@ function saveOrgansToFile() {
   }
 }
 
+// Requests file-based storage functions
+function loadRequestsFromFile() {
+  try {
+    if (fs.existsSync(REQUESTS_FILE)) {
+      const data = fs.readFileSync(REQUESTS_FILE, 'utf8');
+      const parsed = JSON.parse(data);
+      requests = parsed.requests || [];
+      console.log(`📋 Loaded ${requests.length} organ requests from persistent storage`);
+    } else {
+      console.log('📋 No requests file found, initializing empty requests');
+    }
+  } catch (error) {
+    console.error('❌ Failed to load requests from file:', error.message);
+  }
+}
+
+function saveRequestsToFile() {
+  try {
+    const data = JSON.stringify({
+      requests,
+      lastUpdated: new Date().toISOString()
+    }, null, 2);
+    fs.writeFileSync(REQUESTS_FILE, data);
+    console.log(`💾 Saved ${requests.length} organ requests to persistent storage`);
+  } catch (error) {
+    console.error('❌ Failed to save requests to file:', error.message);
+  }
+}
+
 // Ledger functions
 function loadLedgerFromFile() {
   try {
@@ -326,6 +357,7 @@ if (supabase) {
 }
 
 loadLedgerFromFile(); // Load ledger data
+loadRequestsFromFile(); // Load requests data
 
 // Mock implementation (only if no data exists)
 async function initializeMockData() {
@@ -426,7 +458,7 @@ app.post('/createOrgan', async (req, res) => {
   }
 });
 
-// POST /transferOrgan - Transfer organ to hospital
+// POST /transferOrgan - Transfer organ to hospital or mark as arrived
 app.post('/transferOrgan', async (req, res) => {
   try {
     const { tokenId, hospital } = req.body;
@@ -437,30 +469,53 @@ app.post('/transferOrgan', async (req, res) => {
     } else {
       // Mock
       const organ = organs.find(o => o.tokenId === tokenId);
-      if (!organ || organ.status !== 'Donated') {
-        return res.status(400).json({ error: 'Invalid transfer' });
+      if (!organ) {
+        return res.status(400).json({ error: 'Organ not found' });
       }
-      organ.status = 'Transferred';
-      organ.hospital = hospital;
+
+      // Check if this is an arrival (organ is in transit and staying at same hospital)
+      const isArrival = organ.status === 'Transferred' && organ.hospital === hospital;
+
+      if (isArrival) {
+        // Mark as arrived - change status to "Donated" (Available)
+        organ.status = 'Donated';
+
+        // Record arrival in ledger
+        recordLedgerEvent({
+          type: 'organ_arrived',
+          organId: tokenId,
+          organType: organ.organType,
+          hospital: hospital,
+          timestamp: new Date().toISOString(),
+          details: `Organ ${organ.organType} (${tokenId}) arrived at ${hospital} and is now available`
+        });
+      } else {
+        // Regular transfer
+        if (organ.status !== 'Donated') {
+          return res.status(400).json({ error: 'Invalid transfer - organ must be available' });
+        }
+        organ.status = 'Transferred';
+        organ.hospital = hospital;
+
+        // Record transfer in ledger
+        recordLedgerEvent({
+          type: 'organ_transferred',
+          organId: tokenId,
+          organType: organ.organType,
+          hospital: hospital,
+          timestamp: new Date().toISOString(),
+          details: `Organ ${organ.organType} (${tokenId}) transferred to ${hospital}`
+        });
+      }
 
       // Update in Supabase if available, otherwise save to file
       if (supabase) {
-        await updateOrganInSupabase(tokenId, { status: 'Transferred', hospital });
+        await updateOrganInSupabase(tokenId, { status: organ.status, hospital: organ.hospital });
       } else {
         saveOrgansToFile();
       }
 
-      // Record in ledger
-      recordLedgerEvent({
-        type: 'organ_transferred',
-        organId: tokenId,
-        organType: organ.organType,
-        hospital: hospital,
-        timestamp: new Date().toISOString(),
-        details: `Organ ${organ.organType} (${tokenId}) transferred to ${hospital}`
-      });
-
-      res.json({ success: true, txHash: `mock_transfer_${tokenId}` });
+      res.json({ success: true, txHash: `mock_${isArrival ? 'arrival' : 'transfer'}_${tokenId}` });
     }
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -639,13 +694,24 @@ app.post('/createOrganRequest', async (req, res) => {
       requestingHospital,
       owningHospital: owningHospital || 'General Hospital',
       status: 'pending',
-      requesterAddress
+      requesterAddress,
+      createdAt: new Date().toISOString()
     };
 
-    // Update organ status to Requested
+    // Update organ status to Requested and save request
     if (supabase) {
       await updateOrganInSupabase(organId, { status: 'Requested' });
       await createOrganRequestInSupabase(request);
+    } else {
+      // Update organ status in file storage
+      const organ = organs.find(o => o.tokenId === parseInt(organId));
+      if (organ) {
+        organ.status = 'Requested';
+        saveOrgansToFile();
+      }
+      // Save request to file storage
+      requests.push(request);
+      saveRequestsToFile();
     }
 
     res.json({ success: true, requestId: request.requestId, message: 'Organ transfer request created successfully' });
@@ -657,13 +723,27 @@ app.post('/createOrganRequest', async (req, res) => {
 // GET /organRequests - Get all organ requests
 app.get('/organRequests', async (req, res) => {
   try {
-    let requests = [];
+    let requestsData = [];
 
     if (supabase) {
-      requests = await getOrganRequestsFromSupabase();
+      requestsData = await getOrganRequestsFromSupabase();
+    } else {
+      // Return requests from file storage
+      requestsData = requests.map(request => ({
+        id: request.requestId, // Use requestId as id for frontend compatibility
+        requestId: request.requestId,
+        organId: request.organId,
+        requestingHospital: request.requestingHospital,
+        owningHospital: request.owningHospital,
+        status: request.status,
+        requesterAddress: request.requesterAddress,
+        createdAt: request.createdAt,
+        updatedAt: request.createdAt // Use createdAt as updatedAt for file storage
+      }));
     }
 
-    res.json(requests);
+    console.log(`📋 Retrieved ${requestsData.length} organ requests`);
+    res.json(requestsData);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -696,6 +776,30 @@ app.put('/updateOrganRequest', async (req, res) => {
         // If rejected, reset organ status to Donated
         await updateOrganInSupabase(organId, { status: 'Donated' });
       }
+    } else {
+      // Update request in file storage
+      const requestIndex = requests.findIndex(r => r.requestId === requestId);
+      if (requestIndex !== -1) {
+        requests[requestIndex].status = status;
+        saveRequestsToFile();
+
+        // Update organ status based on request action
+        if (status === 'accepted' && organId) {
+          const organ = organs.find(o => o.tokenId === parseInt(organId));
+          if (organ) {
+            organ.status = 'Transferred';
+            organ.hospital = requests[requestIndex].requestingHospital;
+            saveOrgansToFile();
+          }
+        } else if (status === 'rejected' && organId) {
+          // Reset organ status to Donated
+          const organ = organs.find(o => o.tokenId === parseInt(organId));
+          if (organ) {
+            organ.status = 'Donated';
+            saveOrgansToFile();
+          }
+        }
+      }
     }
 
     res.json({ success: true, message: `Request ${requestId} has been ${status}` });
@@ -709,10 +813,14 @@ app.delete('/clearOrgans', async (req, res) => {
   try {
     organs = [];
     nextTokenId = 0;
+    requests = []; // Clear requests array
 
     // Clear file storage
     if (fs.existsSync(ORGANS_FILE)) {
       fs.unlinkSync(ORGANS_FILE);
+    }
+    if (fs.existsSync(REQUESTS_FILE)) {
+      fs.unlinkSync(REQUESTS_FILE);
     }
 
     // Clear Supabase if available

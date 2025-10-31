@@ -64,7 +64,9 @@ const Ledger = () => {
     } else if (type === 'organ_created' || type === 'OrganRegistered') {
       return `[${date}] OrganRegistered - ${event.organType} - Donor: ${event.donor} → Recipient: ${event.recipient || 'Pending'} (${event.hospital})`;
     } else if (type === 'organ_transferred') {
-      return `[${date}] OrganTransferred - ${event.organType} - From: ${event.hospital}`;
+      return `[${date}] OrganTransferred - ${event.organType} - To: ${event.hospital}`;
+    } else if (type === 'organ_arrived') {
+      return `[${date}] OrganArrived - ${event.organType} - At: ${event.hospital}`;
     } else {
       return `[${date}] ${type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} - ${event.organType}`;
     }

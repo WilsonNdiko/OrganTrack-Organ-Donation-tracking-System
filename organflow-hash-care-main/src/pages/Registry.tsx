@@ -807,12 +807,21 @@ const Registry = () => {
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="transferLocation">Destination Hospital</Label>
-                <Input
-                  id="transferLocation"
-                  placeholder="Enter hospital name"
+                <Select
                   value={transferLocation}
-                  onChange={(e) => setTransferLocation(e.target.value)}
-                />
+                  onValueChange={(value) => setTransferLocation(value)}
+                >
+                  <SelectTrigger id="transferLocation">
+                    <SelectValue placeholder="Select destination hospital" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Nairobi General">Nairobi General</SelectItem>
+                    <SelectItem value="Kenyatta Hospital">Kenyatta Hospital</SelectItem>
+                    <SelectItem value="Coast Medical">Coast Medical</SelectItem>
+                    <SelectItem value="Aga Khan">Aga Khan</SelectItem>
+                    <SelectItem value="Mombasa Referral">Mombasa Referral</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="flex justify-end gap-3">
@@ -836,12 +845,21 @@ const Registry = () => {
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
                 <Label htmlFor="requestingHospital">Your Hospital Name</Label>
-                <Input
-                  id="requestingHospital"
-                  placeholder="Enter your hospital name"
+                <Select
                   value={requestingHospital}
-                  onChange={(e) => setRequestingHospital(e.target.value)}
-                />
+                  onValueChange={(value) => setRequestingHospital(value)}
+                >
+                  <SelectTrigger id="requestingHospital">
+                    <SelectValue placeholder="Select your hospital" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Nairobi General">Nairobi General</SelectItem>
+                    <SelectItem value="Kenyatta Hospital">Kenyatta Hospital</SelectItem>
+                    <SelectItem value="Coast Medical">Coast Medical</SelectItem>
+                    <SelectItem value="Aga Khan">Aga Khan</SelectItem>
+                    <SelectItem value="Mombasa Referral">Mombasa Referral</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             <div className="flex justify-end gap-3">
@@ -1038,25 +1056,44 @@ const Registry = () => {
   );
 
   // Local functions for the UI
-  function markAsArrived(organ: BackendOrgan) {
+  async function markAsArrived(organ: BackendOrgan) {
     console.log("🏥 Mark as arrived called for organ:", organ.tokenId);
 
-    // Mark that we made a change to prevent auto-refresh
-    const timestamp = Date.now().toString();
-    localStorage.setItem('lastOrganChange', timestamp);
-    console.log("💾 Set lastOrganChange timestamp:", timestamp);
+    try {
+      // Update organ status to "Donated" (Available) via API
+      await api.transferOrgan({
+        tokenId: organ.tokenId,
+        hospital: organ.hospital || "General Hospital", // Keep same hospital
+      });
 
-    setOrgans(organs.map(o =>
-      o.tokenId === organ.tokenId
-        ? { ...o, status: "Donated" }
-        : o
-    ));
+      // Mark that we made a change to prevent auto-refresh
+      const timestamp = Date.now().toString();
+      localStorage.setItem('lastOrganChange', timestamp);
+      console.log("💾 Set lastOrganChange timestamp:", timestamp);
 
-    console.log("✅ Organ status updated to 'Donated' (Available)");
-    toast({
-      title: "📍 Organ Arrived",
-      description: `${organ.organType} has arrived and is now available`,
-    });
+      // Update local state
+      setOrgans(organs.map(o =>
+        o.tokenId === organ.tokenId
+          ? { ...o, status: "Donated" }
+          : o
+      ));
+
+      console.log("✅ Organ status updated to 'Donated' (Available)");
+      toast({
+        title: "📍 Organ Arrived",
+        description: `${organ.organType} has arrived and is now available`,
+      });
+
+      // Refresh data from backend after a short delay
+      setTimeout(() => fetchOrgans(), 1000);
+    } catch (error) {
+      console.error("Error marking organ as arrived:", error);
+      toast({
+        title: "Arrival Failed",
+        description: "Failed to mark organ as arrived.",
+        variant: "destructive",
+      });
+    }
   }
 };
 
