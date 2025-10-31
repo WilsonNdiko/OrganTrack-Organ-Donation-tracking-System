@@ -107,6 +107,7 @@ const Registry = () => {
         organType: formData.type,
         bloodType: formData.bloodType,
         tokenURI: "",
+        hospital: formData.location, // Include hospital location
       });
 
       // Reset form and close dialog
@@ -532,7 +533,7 @@ const Registry = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-2">
                       <Heart className="w-5 h-5 text-primary" />
-                      <CardTitle className="text-lg font-display capitalize">{organ.organType}</CardTitle>
+                      <CardTitle className="text-lg font-display capitalize">{organ.organType || 'Unknown Organ'}</CardTitle>
                     </div>
                     <StatusBadge status={getStatusForBadge(organ.status)} />
                   </div>
