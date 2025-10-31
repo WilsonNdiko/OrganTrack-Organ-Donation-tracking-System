@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Heart, CheckCircle, Shield, Database, Zap, Lock, Info, AlertTriangle, Plus } from "lucide-react";
 import { api, Organ } from "../../../src/services/api";
@@ -24,6 +24,9 @@ const Dashboard = () => {
   const [bloodType, setBloodType] = useState("");
   const [donorId, setDonorId] = useState("");
   const [hospitalLocation, setHospitalLocation] = useState("");
+  const [recipientName, setRecipientName] = useState("");
+  const [recipientBloodType, setRecipientBloodType] = useState("");
+  const [recipientContact, setRecipientContact] = useState("");
   const [creating, setCreating] = useState(false);
 
   const fetchOrgans = useCallback(async () => {
@@ -72,6 +75,9 @@ const Dashboard = () => {
       setBloodType("");
       setDonorId("");
       setHospitalLocation("");
+      setRecipientName("");
+      setRecipientBloodType("");
+      setRecipientContact("");
 
       // Close dialog and refresh data
       setCreateDialogOpen(false);
@@ -131,78 +137,154 @@ const Dashboard = () => {
                       Register New Organ
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-md">
+                  <DialogContent className="sm:max-w-[550px]">
                     <DialogHeader>
                       <DialogTitle>Register New Organ</DialogTitle>
+                      <DialogDescription>
+                        Register a new organ as an NFT on Hedera Hashgraph. Required fields marked with *.
+                      </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleCreateOrgan} className="space-y-4">
-                      <div>
-                        <Label htmlFor="organType">Organ Type</Label>
-                        <Select value={organType} onValueChange={setOrganType}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select organ type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="Heart">Heart</SelectItem>
-                            <SelectItem value="Kidney">Kidney</SelectItem>
-                            <SelectItem value="Liver">Liver</SelectItem>
-                            <SelectItem value="Lung">Lung</SelectItem>
-                            <SelectItem value="Pancreas">Pancreas</SelectItem>
-                            <SelectItem value="Intestine">Intestine</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      {/* Required Fields */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="organType">Organ Type *</Label>
+                          <Select
+                            value={organType}
+                            onValueChange={(value) =>
+                              setOrganType(value)
+                            }
+                          >
+                            <SelectTrigger id="organType">
+                              <SelectValue placeholder="Select organ type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Heart">Heart</SelectItem>
+                              <SelectItem value="Kidney">Kidney</SelectItem>
+                              <SelectItem value="Liver">Liver</SelectItem>
+                              <SelectItem value="Lung">Lung</SelectItem>
+                              <SelectItem value="Pancreas">Pancreas</SelectItem>
+                              <SelectItem value="Intestine">Intestine</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="donorId">Donor ID *</Label>
+                          <Input
+                            id="donorId"
+                            placeholder="D-XXXX"
+                            value={donorId}
+                            onChange={(e) =>
+                              setDonorId(e.target.value)
+                            }
+                          />
+                        </div>
                       </div>
 
-                      <div>
-                        <Label htmlFor="bloodType">Blood Type</Label>
-                        <Select value={bloodType} onValueChange={setBloodType}>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select blood type" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="A+">A+</SelectItem>
-                            <SelectItem value="A-">A-</SelectItem>
-                            <SelectItem value="B+">B+</SelectItem>
-                            <SelectItem value="B-">B-</SelectItem>
-                            <SelectItem value="AB+">AB+</SelectItem>
-                            <SelectItem value="AB-">AB-</SelectItem>
-                            <SelectItem value="O+">O+</SelectItem>
-                            <SelectItem value="O-">O-</SelectItem>
-                          </SelectContent>
-                        </Select>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="grid gap-2">
+                          <Label htmlFor="bloodType">Blood Type *</Label>
+                          <Select
+                            value={bloodType}
+                            onValueChange={(value) =>
+                              setBloodType(value)
+                            }
+                          >
+                            <SelectTrigger id="bloodType">
+                              <SelectValue placeholder="Select blood type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="A+">A+</SelectItem>
+                              <SelectItem value="A-">A-</SelectItem>
+                              <SelectItem value="B+">B+</SelectItem>
+                              <SelectItem value="B-">B-</SelectItem>
+                              <SelectItem value="AB+">AB+</SelectItem>
+                              <SelectItem value="AB-">AB-</SelectItem>
+                              <SelectItem value="O+">O+</SelectItem>
+                              <SelectItem value="O-">O-</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-2">
+                          <Label htmlFor="location">Hospital Location *</Label>
+                          <Select
+                            value={hospitalLocation}
+                            onValueChange={(value) =>
+                              setHospitalLocation(value)
+                            }
+                          >
+                            <SelectTrigger id="location">
+                              <SelectValue placeholder="Select hospital" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Nairobi General">Nairobi General</SelectItem>
+                              <SelectItem value="Kenyatta Hospital">Kenyatta Hospital</SelectItem>
+                              <SelectItem value="Coast Medical">Coast Medical</SelectItem>
+                              <SelectItem value="Aga Khan">Aga Khan</SelectItem>
+                              <SelectItem value="Mombasa Referral">Mombasa Referral</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
                       </div>
 
-                      <div>
-                        <Label htmlFor="donorId">Donor ID</Label>
-                        <Input
-                          id="donorId"
-                          value={donorId}
-                          onChange={(e) => setDonorId(e.target.value)}
-                          placeholder="D-XXXX"
-                        />
+                      {/* Optional Recipient Details */}
+                      <div className="border-t pt-4">
+                        <h4 className="text-sm font-medium text-muted-foreground mb-3">Recipient Details (Optional)</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="grid gap-2">
+                            <Label htmlFor="recipientName">Recipient Name</Label>
+                            <Input
+                              id="recipientName"
+                              placeholder="Full name of recipient"
+                              value={recipientName}
+                              onChange={(e) =>
+                                setRecipientName(e.target.value)
+                              }
+                            />
+                          </div>
+                          <div className="grid gap-2">
+                            <Label htmlFor="recipientBloodType">Recipient Blood Group</Label>
+                            <Select
+                              value={recipientBloodType}
+                              onValueChange={(value) =>
+                                setRecipientBloodType(value)
+                              }
+                            >
+                              <SelectTrigger id="recipientBloodType">
+                                <SelectValue placeholder="Select blood type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="A+">A+</SelectItem>
+                                <SelectItem value="A-">A-</SelectItem>
+                                <SelectItem value="B+">B+</SelectItem>
+                                <SelectItem value="B-">B-</SelectItem>
+                                <SelectItem value="AB+">AB+</SelectItem>
+                                <SelectItem value="AB-">AB-</SelectItem>
+                                <SelectItem value="O+">O+</SelectItem>
+                                <SelectItem value="O-">O-</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                        <div className="grid gap-2 mt-4">
+                          <Label htmlFor="recipientContact">Recipient Contact</Label>
+                          <Input
+                            id="recipientContact"
+                            placeholder="+254 XXX XXX XXX"
+                            value={recipientContact}
+                            onChange={(e) =>
+                              setRecipientContact(e.target.value)
+                            }
+                          />
+                        </div>
                       </div>
 
-                      <div>
-                        <Label htmlFor="hospitalLocation">Hospital Location</Label>
-                        <Input
-                          id="hospitalLocation"
-                          value={hospitalLocation}
-                          onChange={(e) => setHospitalLocation(e.target.value)}
-                          placeholder="Hospital name"
-                        />
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Button type="submit" disabled={creating} className="flex-1">
-                          {creating ? "Creating..." : "Create Organ"}
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => setCreateDialogOpen(false)}
-                          className="flex-1"
-                        >
+                      <div className="flex justify-end gap-3">
+                        <Button variant="outline" onClick={() => setCreateDialogOpen(false)}>
                           Cancel
+                        </Button>
+                        <Button onClick={handleCreateOrgan} disabled={creating}>
+                          {creating ? "Registering..." : "Register Organ"}
                         </Button>
                       </div>
                     </form>
