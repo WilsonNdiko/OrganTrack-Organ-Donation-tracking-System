@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Heart, CheckCircle, Shield, Database, Zap, Lock, Info, AlertTriangle } from "lucide-react";
+import { Heart, CheckCircle, Shield, Database, Zap, Lock, Info, AlertTriangle, Plus } from "lucide-react";
 import { api, Organ } from "../../../src/services/api";
 
 const Dashboard = () => {
@@ -126,7 +126,8 @@ const Dashboard = () => {
                 <h3 className="text-2xl font-display font-bold">Live Organ Registry</h3>
                 <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
                   <DialogTrigger asChild>
-                    <Button className="bg-primary hover:bg-primary/90">
+                    <Button className="w-full lg:w-auto gap-2">
+                      <Plus className="w-4 h-4" />
                       Register New Organ
                     </Button>
                   </DialogTrigger>
