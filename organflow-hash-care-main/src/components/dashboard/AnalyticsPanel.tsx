@@ -4,6 +4,12 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { TrendingUp, Activity, Users, Clock } from "lucide-react";
 import { api, AnalyticsData } from "../../../../src/services/api";
 
+interface ActivityItem {
+  name?: string;
+  consensus_timestamp?: number;
+  transaction_hash?: string;
+}
+
 const AnalyticsPanel = () => {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -194,7 +200,7 @@ const AnalyticsPanel = () => {
         <CardContent>
           <div className="space-y-4">
             {analytics.recentActivity.length > 0 ? (
-              analytics.recentActivity.slice(0, 5).map((activity: any, index: number) => (
+              analytics.recentActivity.slice(0, 5).map((activity: ActivityItem, index: number) => (
                 <div key={index} className="flex items-center justify-between p-3 bg-accent/30 rounded-lg">
                   <div>
                     <p className="font-medium text-sm">

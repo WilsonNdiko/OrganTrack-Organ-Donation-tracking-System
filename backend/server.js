@@ -490,9 +490,9 @@ app.post('/transferOrgan', async (req, res) => {
           details: `Organ ${organ.organType} (${tokenId}) arrived at ${hospital} and is now available`
         });
       } else {
-        // Regular transfer
-        if (organ.status !== 'Donated') {
-          return res.status(400).json({ error: 'Invalid transfer - organ must be available' });
+        // Regular transfer - only allow if organ is available (Donated) or requested
+        if (organ.status !== 'Donated' && organ.status !== 'Requested') {
+          return res.status(400).json({ error: 'Invalid transfer - organ must be available or requested' });
         }
         organ.status = 'Transferred';
         organ.hospital = hospital;
