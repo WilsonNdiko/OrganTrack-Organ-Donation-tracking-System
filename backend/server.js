@@ -8,7 +8,21 @@ import fetch from 'node-fetch'; // For Mirror Node API calls
 import { createClient } from '@supabase/supabase-js';
 
 const app = express();
-app.use(cors());
+
+// Configure CORS to allow requests from Vercel and localhost
+const corsOptions = {
+  origin: [
+    'https://organ-track-organ-donation-tracking.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:8080',
+    'http://localhost:3002'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 const port = process.env.PORT || 3002;
