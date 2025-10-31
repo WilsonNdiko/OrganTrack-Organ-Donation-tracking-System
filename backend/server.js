@@ -244,19 +244,31 @@ if (supabase) {
 // Mock implementation (only if no data exists)
 async function initializeMockData() {
   if (organs.length === 0) {
+    const hospitalNames = [
+      'St. Mary\'s General Hospital',
+      'City Medical Center',
+      'University Hospital',
+      'Regional Health Center',
+      'Metropolitan Medical Group'
+    ];
+
     const mockOrgans = [
       { organType: 'Heart', bloodType: 'A+', status: 'Donated' },
       { organType: 'Kidney', bloodType: 'B-', status: 'Transferred' },
       { organType: 'Liver', bloodType: 'O+', status: 'Transplanted' },
+      { organType: 'Lung', bloodType: 'AB-', status: 'Donated' },
+      { organType: 'Pancreas', bloodType: 'A-', status: 'Requested' },
     ];
+
     organs = mockOrgans.map((o, i) => ({
       tokenId: i,
       ...o,
-      donor: '0x' + '1'.repeat(40),
-      hospital: i % 2 === 0 ? '0x' + '2'.repeat(40) : null,
-      recipient: i === 2 ? '0x' + '3'.repeat(40) : null,
-      createdAt: Date.now() - i * 86400000, // Days ago
+      donor: `0x${(i + 1).toString().padStart(40, '1')}`, // Proper hex format
+      hospital: i % 2 === 0 ? hospitalNames[i % hospitalNames.length] : null,
+      recipient: i === 2 ? `0x${(i + 10).toString().padStart(40, '2')}` : null,
+      createdAt: new Date(Date.now() - i * 86400000).toISOString(), // Always ISO string
     }));
+
     nextTokenId = mockOrgans.length;
     saveOrgansToFile();
     console.log('🏭 Initialized with mock data and saved to persistent storage');

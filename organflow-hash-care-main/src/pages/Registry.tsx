@@ -545,7 +545,7 @@ const Registry = () => {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Blood Type:</span>
-                      <span className="font-medium text-foreground">{organ.bloodType}</span>
+                      <span className="font-medium text-foreground">{organ.bloodType || 'Unknown'}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Location:</span>
@@ -555,7 +555,9 @@ const Registry = () => {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Timestamp:</span>
-                      <span className="font-mono text-xs text-foreground">{new Date(organ.createdAt).toLocaleString()}</span>
+                      <span className="font-mono text-xs text-foreground">
+                        {organ.createdAt ? new Date(organ.createdAt).toLocaleString() : 'Unknown'}
+                      </span>
                     </div>
                   </div>
                   <div className="flex gap-2 mt-4">
