@@ -471,6 +471,11 @@ Every feature we build, every line of code we write, every partnership we form -
 
 ---
 
+## 🎥 Pitch Deck  
+You can view our presentation here: [OrgFlow Pitch Deck](https://github.com/WilsonNdiko/OrganTrack-Organ-Donation-tracking-System/blob/main/OrgFlow%20Pitch%20Deck.pptx)
+
+---
+
 ## 📜 **Team Certifications**
 
 The OrgFlow team demonstrates deep expertise in Hedera Hashgraph technology through completion of the comprehensive [Hashgraph Developer Course](https://hashgraphdev.com/courses/hashgraph-developer-course).
