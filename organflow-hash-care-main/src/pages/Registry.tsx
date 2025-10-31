@@ -148,6 +148,9 @@ const Registry = () => {
         hospital: transferLocation,
       });
 
+      // Mark that we made a change to prevent auto-refresh
+      localStorage.setItem('lastOrganChange', Date.now().toString());
+
       // Update local state and refresh from backend
       setOrgans(organs.map(organ =>
         organ.tokenId === selectedOrgan.tokenId
@@ -190,6 +193,9 @@ const Registry = () => {
         tokenId: selectedOrgan.tokenId,
         recipient: selectedOrgan.donor || "0x0000000000000000000000000000000000000000", // Use donor as recipient for demo
       });
+
+      // Mark that we made a change to prevent auto-refresh
+      localStorage.setItem('lastOrganChange', Date.now().toString());
 
       // Update local state and refresh from backend
       setOrgans(organs.map(organ =>
@@ -242,6 +248,10 @@ const Registry = () => {
       });
 
       if (result.success) {
+        // Mark that we made changes to prevent auto-refresh
+        localStorage.setItem('lastOrganChange', Date.now().toString());
+        localStorage.setItem('lastRequestChange', Date.now().toString());
+
         // Update organ status locally for UI - changes to "Requested"
         setOrgans(organs.map(organ =>
           organ.tokenId === selectedOrgan.tokenId
@@ -348,8 +358,25 @@ const Registry = () => {
   useEffect(() => {
     fetchOrgans();
     fetchOrganRequests();
-    const organsInterval = setInterval(fetchOrgans, 30000); // Refresh every 30 seconds
-    const requestsInterval = setInterval(fetchOrganRequests, 30000); // Refresh requests too
+
+    const organsInterval = setInterval(() => {
+      // Only auto-refresh if no recent manual changes
+      const lastChange = localStorage.getItem('lastOrganChange');
+      const timeSinceChange = lastChange ? Date.now() - parseInt(lastChange) : Infinity;
+      if (timeSinceChange > 5000) { // 5 seconds after manual change
+        fetchOrgans();
+      }
+    }, 30000);
+
+    const requestsInterval = setInterval(() => {
+      // Only auto-refresh if no recent manual changes
+      const lastChange = localStorage.getItem('lastRequestChange');
+      const timeSinceChange = lastChange ? Date.now() - parseInt(lastChange) : Infinity;
+      if (timeSinceChange > 5000) { // 5 seconds after manual change
+        fetchOrganRequests();
+      }
+    }, 30000);
+
     return () => {
       clearInterval(organsInterval);
       clearInterval(requestsInterval);
