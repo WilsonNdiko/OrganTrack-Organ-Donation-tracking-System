@@ -222,8 +222,22 @@ async function getOrganRequestsFromSupabase() {
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    console.log(`📋 Retrieved ${data?.length || 0} organ requests from Supabase`);
-    return data || [];
+
+    // Map Supabase field names to frontend expected field names
+    const mappedRequests = (data || []).map(request => ({
+      id: request.id,
+      requestId: request.request_id,
+      organId: request.organ_id,
+      requestingHospital: request.requesting_hospital,
+      owningHospital: request.owning_hospital,
+      status: request.status,
+      requesterAddress: request.requester_address,
+      createdAt: request.created_at,
+      updatedAt: request.updated_at
+    }));
+
+    console.log(`📋 Retrieved ${mappedRequests.length} organ requests from Supabase`);
+    return mappedRequests;
   } catch (error) {
     console.error('❌ Failed to get organ requests from Supabase:', error.message);
     return [];

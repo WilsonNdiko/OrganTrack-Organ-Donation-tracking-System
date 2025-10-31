@@ -345,6 +345,7 @@ const Registry = () => {
       case "Donated": return "available";
       case "Transferred": return "in-transit";
       case "Transplanted": return "transplanted";
+      case "Requested": return "requested";
       default: return "available";
     }
   };
