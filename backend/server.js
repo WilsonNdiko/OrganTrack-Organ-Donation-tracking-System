@@ -622,14 +622,24 @@ app.delete('/clearOrgans', async (req, res) => {
 });
 
 // GET /debug - Debug endpoint to check data sources
-app.get('/debug', (req, res) => {
+app.get('/debug', async (req, res) => {
+  // Force reload from Supabase to check current state
+  if (supabase) {
+    try {
+      await loadOrgansFromSupabase();
+    } catch (error) {
+      console.error('Debug: Failed to reload from Supabase:', error);
+    }
+  }
+
   res.json({
     supabaseConfigured: !!supabase,
     supabaseUrl: process.env.SUPABASE_URL ? 'configured' : 'missing',
     supabaseKey: process.env.SUPABASE_ANON_KEY ? 'configured' : 'missing',
     organsCount: organs.length,
     organsSource: supabase ? 'supabase' : 'file',
-    organsSample: organs.slice(0, 2), // First 2 organs for debugging
+    organsSample: organs.slice(0, 2), // First 2 organs for debugging (mapped data)
+    rawOrgansSample: organs.slice(0, 2), // Show what frontend actually gets
     nextTokenId,
     timestamp: new Date().toISOString()
   });
