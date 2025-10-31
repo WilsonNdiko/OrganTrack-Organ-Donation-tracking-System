@@ -313,7 +313,14 @@ function loadLedgerFromFile() {
     if (fs.existsSync(LEDGER_FILE)) {
       const data = fs.readFileSync(LEDGER_FILE, 'utf8');
       const parsed = JSON.parse(data);
-      ledger = parsed.ledger || [];
+
+      // Handle both formats: direct array or { ledger: [...] }
+      if (Array.isArray(parsed)) {
+        ledger = parsed;
+      } else {
+        ledger = parsed.ledger || [];
+      }
+
       console.log(`📖 Loaded ${ledger.length} ledger events from persistent storage`);
     } else {
       console.log('📖 No ledger file found, initializing empty ledger');
@@ -860,6 +867,8 @@ app.get('/debug', async (req, res) => {
     organsSource: supabase ? 'supabase' : 'file',
     organsSample: organs.slice(0, 2), // First 2 organs for debugging (mapped data)
     rawOrgansSample: organs.slice(0, 2), // Show what frontend actually gets
+    ledgerCount: ledger.length,
+    ledgerSample: ledger.slice(0, 2),
     nextTokenId,
     timestamp: new Date().toISOString()
   });

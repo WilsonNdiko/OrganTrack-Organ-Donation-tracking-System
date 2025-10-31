@@ -470,7 +470,7 @@ const Registry = () => {
                 <DialogHeader>
                   <DialogTitle>Register New Organ</DialogTitle>
                   <DialogDescription>
-                    Register a new organ as an NFT on Hedera Hashgraph. Required fields marked with *.
+                    Register a new organ as NFT on Hedera Hashgraph. Required fields marked with *.
                   </DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-6 py-4">
