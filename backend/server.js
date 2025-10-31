@@ -396,8 +396,14 @@ app.get('/organs', async (req, res) => {
         return;
       }
     }
-    // Fallback to mock data
-    res.json(organs);
+    // Fallback to mock data - ensure createdAt is ISO string
+    const formattedOrgans = organs.map(organ => ({
+      ...organ,
+      createdAt: typeof organ.createdAt === 'number'
+        ? new Date(organ.createdAt).toISOString()
+        : organ.createdAt
+    }));
+    res.json(formattedOrgans);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

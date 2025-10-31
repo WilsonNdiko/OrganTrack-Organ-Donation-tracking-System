@@ -541,7 +541,7 @@ const Registry = () => {
                   <div className="space-y-3">
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">NFT ID:</span>
-                      <span className="font-mono font-medium text-foreground">{organ.tokenId}</span>
+                      <span className="font-mono font-medium text-foreground text-right break-all">{organ.tokenId}</span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Blood Type:</span>
@@ -549,7 +549,9 @@ const Registry = () => {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Location:</span>
-                      <span className="font-medium text-foreground text-right">Hospital</span>
+                      <span className="font-medium text-foreground text-right">
+                        {organ.hospital || 'Not assigned'}
+                      </span>
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-muted-foreground">Timestamp:</span>
