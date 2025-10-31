@@ -22,7 +22,8 @@ const Dashboard = () => {
   // Form state for organ creation
   const [organType, setOrganType] = useState("");
   const [bloodType, setBloodType] = useState("");
-  const [donorAddress, setDonorAddress] = useState("0x0000000000000000000000000000000000000000");
+  const [donorId, setDonorId] = useState("");
+  const [hospitalLocation, setHospitalLocation] = useState("");
   const [creating, setCreating] = useState(false);
 
   const fetchOrgans = useCallback(async () => {
@@ -51,7 +52,7 @@ const Dashboard = () => {
 
   const handleCreateOrgan = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!organType || !bloodType) {
+    if (!organType || !bloodType || !donorId || !hospitalLocation) {
       alert("Please fill in all required fields");
       return;
     }
@@ -59,16 +60,18 @@ const Dashboard = () => {
     setCreating(true);
     try {
       await api.createOrgan({
-        donor: donorAddress,
+        donor: "0x" + donorId.padEnd(40, "0"), // Convert donor ID to address format
         organType,
         bloodType,
         tokenURI: "",
+        hospital: hospitalLocation, // Include hospital location
       });
 
       // Reset form
       setOrganType("");
       setBloodType("");
-      setDonorAddress("0x0000000000000000000000000000000000000000");
+      setDonorId("");
+      setHospitalLocation("");
 
       // Close dialog and refresh data
       setCreateDialogOpen(false);
@@ -169,13 +172,22 @@ const Dashboard = () => {
                       </div>
 
                       <div>
-                        <Label htmlFor="donorAddress">Donor Address</Label>
+                        <Label htmlFor="donorId">Donor ID</Label>
                         <Input
-                          id="donorAddress"
-                          value={donorAddress}
-                          onChange={(e) => setDonorAddress(e.target.value)}
-                          placeholder="0x..."
-                          className="font-mono text-sm"
+                          id="donorId"
+                          value={donorId}
+                          onChange={(e) => setDonorId(e.target.value)}
+                          placeholder="D-XXXX"
+                        />
+                      </div>
+
+                      <div>
+                        <Label htmlFor="hospitalLocation">Hospital Location</Label>
+                        <Input
+                          id="hospitalLocation"
+                          value={hospitalLocation}
+                          onChange={(e) => setHospitalLocation(e.target.value)}
+                          placeholder="Hospital name"
                         />
                       </div>
 

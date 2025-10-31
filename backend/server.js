@@ -293,7 +293,7 @@ async function fetchTransactionInfo(txHash) {
 // POST /createOrgan - Mint new organ NFT
 app.post('/createOrgan', async (req, res) => {
   try {
-    const { donor, organType, bloodType, tokenURI } = req.body;
+    const { donor, organType, bloodType, tokenURI, hospital } = req.body;
     if (organNFT) {
       const tx = await organNFT.mintOrgan(donor, organType, bloodType, tokenURI || '');
       await tx.wait();
@@ -307,8 +307,8 @@ app.post('/createOrgan', async (req, res) => {
         status: 'Donated',
         donor,
         tokenURI,
-        createdAt: Date.now(),
-        hospital: null,
+        createdAt: new Date().toISOString(), // Always ISO string
+        hospital: hospital || null, // Include hospital from request
         recipient: null,
       };
       organs.push(organ);

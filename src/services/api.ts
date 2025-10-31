@@ -7,6 +7,7 @@ export interface CreateOrganRequest {
   organType: string;
   bloodType: string;
   tokenURI?: string;
+  hospital?: string;
 }
 
 export interface TransferRequest {
