@@ -15,7 +15,7 @@
 
 ## 🎯 **What is OrgFlow?**
 
-OrgFlow is an enterprise-grade organ donation tracking platform that leverages **Hedera Hashgraph** blockchain technology to create an **immutable, transparent, and fraud-resistant organ donation ecosystem**. Built for hospitals, transplant coordinators, and medical professionals, OrgFlow ensures every step of the organ donation process is secure, traceable, and optimized for life-saving efficiency.
+OrgFlow is an enterprise-grade **organ donation tracking platform** that leverages **Hedera Hashgraph distributed ledger technology (DLT)** to create an immutable, transparent, and fraud-resistant organ donation ecosystem. Built for hospitals, transplant coordinators, and medical professionals, OrgFlow ensures every step of the organ donation process is secure, verifiable, and optimized for life-saving efficiency.
 
 ### ⭐ **Key Innovation**
 While traditional organ donation systems rely on paper trails and phone calls, OrgFlow provides **real-time, blockchain-secured organ management** that hospitals can trust for life-critical operations.
@@ -56,7 +56,7 @@ While traditional organ donation systems rely on paper trails and phone calls, O
 |-----------|------------|---------|
 | **Frontend** | React + TypeScript | Medical UI with real-time updates |
 | **Backend** | Node.js + Express | API server with Hedera integration |
-| **Blockchain** | Hedera Hashgraph | Immutable organ tracking records |
+| **DLT** | Hedera Hashgraph | Immutable organ tracking records |
 | **Database** | JSON File System | Persistent data storage |
 | **Styling** | Tailwind CSS | Medical-grade responsive UI |
 | **Animation** | Framer Motion | Smooth, professional transitions |
