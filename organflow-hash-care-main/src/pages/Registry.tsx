@@ -824,6 +824,9 @@ const Registry = () => {
 
   // Local functions for the UI
   function markAsArrived(organ: BackendOrgan) {
+    // Mark that we made a change to prevent auto-refresh
+    localStorage.setItem('lastOrganChange', Date.now().toString());
+
     setOrgans(organs.map(o =>
       o.tokenId === organ.tokenId
         ? { ...o, status: "Donated" }
