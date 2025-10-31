@@ -148,11 +148,13 @@ const Registry = () => {
         hospital: transferLocation,
       });
 
+      // Update local state and refresh from backend
       setOrgans(organs.map(organ =>
         organ.tokenId === selectedOrgan.tokenId
           ? {
               ...organ,
               status: "Transferred",
+              hospital: transferLocation,
               createdAt: new Date().toISOString()
             }
           : organ
@@ -166,6 +168,9 @@ const Registry = () => {
       setIsTransferDialogOpen(false);
       setSelectedOrgan(null);
       setTransferLocation("");
+
+      // Refresh data from backend after a short delay
+      setTimeout(() => fetchOrgans(), 1000);
     } catch (error) {
       console.error("Error transferring organ:", error);
       toast({
@@ -186,6 +191,7 @@ const Registry = () => {
         recipient: selectedOrgan.donor || "0x0000000000000000000000000000000000000000", // Use donor as recipient for demo
       });
 
+      // Update local state and refresh from backend
       setOrgans(organs.map(organ =>
         organ.tokenId === selectedOrgan.tokenId
           ? {
@@ -203,6 +209,9 @@ const Registry = () => {
 
       setIsTransplantDialogOpen(false);
       setSelectedOrgan(null);
+
+      // Refresh data from backend after a short delay
+      setTimeout(() => fetchOrgans(), 1000);
     } catch (error) {
       console.error("Error transplanting organ:", error);
       toast({
@@ -244,8 +253,9 @@ const Registry = () => {
             : organ
         ));
 
-        // Refresh requests list
+        // Refresh requests list and organs
         await fetchOrganRequests();
+        setTimeout(() => fetchOrgans(), 500); // Refresh organs after request
 
         toast({
           title: "📨 Request Sent Successfully",
