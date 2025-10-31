@@ -363,8 +363,12 @@ const Registry = () => {
       // Only auto-refresh if no recent manual changes
       const lastChange = localStorage.getItem('lastOrganChange');
       const timeSinceChange = lastChange ? Date.now() - parseInt(lastChange) : Infinity;
+      console.log("🔄 Auto-refresh check - time since last change:", timeSinceChange, "ms");
       if (timeSinceChange > 5000) { // 5 seconds after manual change
+        console.log("🔄 Auto-refreshing organs...");
         fetchOrgans();
+      } else {
+        console.log("⏸️ Skipping auto-refresh - recent manual change detected");
       }
     }, 30000);
 
@@ -824,14 +828,20 @@ const Registry = () => {
 
   // Local functions for the UI
   function markAsArrived(organ: BackendOrgan) {
+    console.log("🏥 Mark as arrived called for organ:", organ.tokenId);
+
     // Mark that we made a change to prevent auto-refresh
-    localStorage.setItem('lastOrganChange', Date.now().toString());
+    const timestamp = Date.now().toString();
+    localStorage.setItem('lastOrganChange', timestamp);
+    console.log("💾 Set lastOrganChange timestamp:", timestamp);
 
     setOrgans(organs.map(o =>
       o.tokenId === organ.tokenId
         ? { ...o, status: "Donated" }
         : o
     ));
+
+    console.log("✅ Organ status updated to 'Donated' (Available)");
     toast({
       title: "📍 Organ Arrived",
       description: `${organ.organType} has arrived and is now available`,
