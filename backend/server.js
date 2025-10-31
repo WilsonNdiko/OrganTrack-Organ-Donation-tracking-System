@@ -609,6 +609,20 @@ app.delete('/clearOrgans', async (req, res) => {
   }
 });
 
+// GET /debug - Debug endpoint to check data sources
+app.get('/debug', (req, res) => {
+  res.json({
+    supabaseConfigured: !!supabase,
+    supabaseUrl: process.env.SUPABASE_URL ? 'configured' : 'missing',
+    supabaseKey: process.env.SUPABASE_ANON_KEY ? 'configured' : 'missing',
+    organsCount: organs.length,
+    organsSource: supabase ? 'supabase' : 'file',
+    organsSample: organs.slice(0, 2), // First 2 organs for debugging
+    nextTokenId,
+    timestamp: new Date().toISOString()
+  });
+});
+
 // GET /health - Simple health check endpoint
 app.get('/health', (req, res) => {
   res.json({
