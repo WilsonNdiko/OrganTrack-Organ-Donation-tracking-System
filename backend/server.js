@@ -132,8 +132,20 @@ async function loadOrgansFromSupabase() {
 
     if (error) throw error;
 
-    organs = data || [];
-    nextTokenId = Math.max(...organs.map(o => o.token_id || 0), 0) + 1;
+    // Map Supabase field names to frontend expected field names
+    organs = (data || []).map(organ => ({
+      tokenId: organ.token_id,
+      organType: organ.organ_type,
+      bloodType: organ.blood_type,
+      status: organ.status,
+      donor: organ.donor,
+      hospital: organ.hospital,
+      recipient: organ.recipient,
+      tokenURI: organ.token_uri,
+      createdAt: organ.created_at
+    }));
+
+    nextTokenId = Math.max(...organs.map(o => o.tokenId || 0), 0) + 1;
     console.log(`🗄️  Loaded ${organs.length} organs from Supabase`);
   } catch (error) {
     console.error('❌ Failed to load organs from Supabase:', error.message);
