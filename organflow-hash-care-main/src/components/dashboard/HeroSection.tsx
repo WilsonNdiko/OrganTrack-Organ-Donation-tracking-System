@@ -20,8 +20,8 @@ const HeroSection = () => {
             </h1>
           </div>
           <p className="text-xl text-white/90 max-w-2xl">
-            Track organ donations and transplants with transparent blockchain verification powered
-            by Hedera Hashgraph. Saving lives through technology and trust.
+            Track organ donations and transplants with transparent verification 
+            powered by Hedera Hashgraph — saving lives through technology, trust, and transparency.
           </p>
         </div>
 
