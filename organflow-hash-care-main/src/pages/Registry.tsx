@@ -765,28 +765,15 @@ const Registry = () => {
                       </>
                     )}
                     {getStatusForBadge(organ.status) === "in-transit" && (
-                      <>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="flex-1"
-                          onClick={() => markAsArrived(selectedOrgan || organ)}
-                        >
-                          <MapPin className="w-3 h-3 mr-1" />
-                          Mark Arrived
-                        </Button>
-                        <Button
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => {
-                            setSelectedOrgan(organ);
-                            setIsTransplantDialogOpen(true);
-                          }}
-                        >
-                          <CheckCircle className="w-3 h-3 mr-1" />
-                          Transplant
-                        </Button>
-                      </>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => markAsArrived(selectedOrgan || organ)}
+                      >
+                        <MapPin className="w-3 h-3 mr-1" />
+                        Mark Arrived
+                      </Button>
                     )}
                   </div>
                 </CardContent>
@@ -993,14 +980,11 @@ const Registry = () => {
                     <SelectValue placeholder="Select hospital" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="St. Mary's General Hospital">St. Mary's General Hospital</SelectItem>
-                    <SelectItem value="City Medical Center">City Medical Center</SelectItem>
-                    <SelectItem value="University Hospital">University Hospital</SelectItem>
-                    <SelectItem value="Regional Health Center">Regional Health Center</SelectItem>
-                    <SelectItem value="Metropolitan Medical Group">Metropolitan Medical Group</SelectItem>
-                    <SelectItem value="Central Hospital">Central Hospital</SelectItem>
-                    <SelectItem value="Eastside Medical Center">Eastside Medical Center</SelectItem>
-                    <SelectItem value="West Valley Hospital">West Valley Hospital</SelectItem>
+                    <SelectItem value="Nairobi General">Nairobi General</SelectItem>
+                    <SelectItem value="Kenyatta Hospital">Kenyatta Hospital</SelectItem>
+                    <SelectItem value="Coast Medical">Coast Medical</SelectItem>
+                    <SelectItem value="Aga Khan">Aga Khan</SelectItem>
+                    <SelectItem value="Mombasa Referral">Mombasa Referral</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

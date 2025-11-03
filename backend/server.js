@@ -540,8 +540,8 @@ app.post('/transplantOrgan', async (req, res) => {
     } else {
       // Mock
       const organ = organs.find(o => o.tokenId === tokenId);
-      if (!organ || organ.status !== 'Transferred') {
-        return res.status(400).json({ error: 'Invalid transplant' });
+      if (!organ || organ.status !== 'Donated') {
+        return res.status(400).json({ error: 'Invalid transplant - organ must be available (not in transit)' });
       }
       organ.status = 'Transplanted';
       organ.recipient = recipient;
