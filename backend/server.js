@@ -789,8 +789,152 @@ app.post('/transferOrgan', authenticateHospital, async (req, res) => {
       const tx = await organNFT.transferToHospital(tokenId, hospital);
       await tx.wait();
       res.json({ success: true, txHash: tx.hash });
+    } else if (process.env.TOKEN_ID && hederaClient) {
+      // Mint HTS NFT for transfer transaction
+      console.log('🪙 Minting HTS NFT for organ transfer...');
+
+      const organ = organs.find(o => o.tokenId === tokenId);
+      if (!organ) {
+        return res.status(400).json({ error: 'Organ not found' });
+      }
+
+      // Check if this is an arrival (organ is in transit and staying at same hospital)
+      const isArrival = organ.status === 'Transferred' && organ.hospital === hospital;
+
+      // Create transfer metadata
+      const transferMetadata = {
+        action: isArrival ? 'arrival' : 'transfer',
+        organId: tokenId,
+        organType: organ.organType,
+        bloodType: organ.bloodType,
+        fromHospital: isArrival ? organ.hospital : req.hospital?.name || 'Unknown',
+        toHospital: hospital,
+        timestamp: new Date().toISOString(),
+        txType: 'organ_transfer'
+      };
+
+      // Convert to compact JSON and then to Buffer
+      const metadataString = JSON.stringify(transferMetadata);
+      let metadata = Buffer.from(metadataString);
+
+      console.log(`📊 Transfer metadata size: ${metadata.length} bytes (Hedera limit: 100 bytes)`);
+
+      if (metadata.length > 100) {
+        console.warn('⚠️  Transfer metadata too large, truncating...');
+        // Further optimize if needed
+        const compactMetadata = {
+          a: isArrival ? 'arrival' : 'transfer',
+          id: tokenId,
+          t: organ.organType,
+          b: organ.bloodType,
+          f: (isArrival ? organ.hospital : req.hospital?.name || 'Unknown').substring(0, 8),
+          to: hospital.substring(0, 8),
+          ts: new Date().toISOString().split('T')[0],
+          tx: 'transfer'
+        };
+        const compactString = JSON.stringify(compactMetadata);
+        metadata = Buffer.from(compactString);
+        console.log(`📊 Compacted transfer metadata size: ${metadata.length} bytes`);
+      }
+
+      // Import TokenMintTransaction
+      const { TokenMintTransaction } = await import('@hashgraph/sdk');
+
+      const tokenIdHedera = process.env.TOKEN_ID;
+      const mintTx = await new TokenMintTransaction()
+        .setTokenId(tokenIdHedera)
+        .setMetadata([metadata])
+        .setMaxTransactionFee(new Hbar(10))
+        .freezeWith(hederaClient);
+
+      const mintSign = await mintTx.sign(process.env.HEDERA_PRIVATE_KEY.startsWith('302e020100300506032b657004220420')
+        ? PrivateKey.fromStringDer(process.env.HEDERA_PRIVATE_KEY)
+        : PrivateKey.fromString(process.env.HEDERA_PRIVATE_KEY));
+
+      const mintSubmit = await mintSign.execute(hederaClient);
+      const mintReceipt = await mintSubmit.getReceipt(hederaClient);
+
+      if (!mintReceipt.serials || mintReceipt.serials.length === 0) {
+        throw new Error('Transfer NFT minting failed - no serial number received');
+      }
+
+      const serialNumber = mintReceipt.serials[0].toNumber();
+      const fullTokenId = `${tokenIdHedera}#${serialNumber}`;
+
+      console.log('✅ Transfer HTS NFT minted successfully!');
+      console.log(`🪙 Transfer Token ID: ${fullTokenId}`);
+      console.log(`🔢 Serial Number: ${serialNumber}`);
+      console.log(`🔗 Hedera Explorer: https://hashscan.io/testnet/token/${tokenIdHedera}/${serialNumber}`);
+
+      // Update organ status
+      if (isArrival) {
+        // Mark as arrived - change status to "Donated" (Available)
+        organ.status = 'Donated';
+
+        // Record arrival in ledger with NFT
+        recordLedgerEvent({
+          type: 'organ_arrived',
+          organId: tokenId,
+          organType: organ.organType,
+          hospital: hospital,
+          txHash: mintSubmit.transactionId.toString(),
+          nftTokenId: fullTokenId,
+          timestamp: new Date().toISOString(),
+          details: `Organ ${organ.organType} (${tokenId}) arrived at ${hospital} and is now available - NFT: ${fullTokenId}`
+        });
+      } else {
+        // Regular transfer - only allow if organ is available (Donated) or requested
+        if (organ.status !== 'Donated' && organ.status !== 'Requested') {
+          return res.status(400).json({ error: 'Invalid transfer - organ must be available or requested' });
+        }
+        organ.status = 'Transferred';
+        organ.hospital = hospital;
+
+        // Record transfer in ledger with NFT
+        recordLedgerEvent({
+          type: 'organ_transferred',
+          organId: tokenId,
+          organType: organ.organType,
+          hospital: hospital,
+          txHash: mintSubmit.transactionId.toString(),
+          nftTokenId: fullTokenId,
+          timestamp: new Date().toISOString(),
+          details: `Organ ${organ.organType} (${tokenId}) transferred to ${hospital} - NFT: ${fullTokenId}`
+        });
+      }
+
+      // Update in Supabase if available, otherwise save to file
+      if (supabase) {
+        await updateOrganInSupabase(tokenId, { status: organ.status, hospital: organ.hospital });
+      } else {
+        saveOrgansToFile();
+      }
+
+      // Send real-time notification
+      const eventType = isArrival ? 'organ_arrived' : 'organ_transferred';
+      notifyClients(eventType, {
+        organ: {
+          tokenId,
+          organType: organ.organType,
+          bloodType: organ.bloodType,
+          status: organ.status,
+          hospital: organ.hospital
+        },
+        fromHospital: isArrival ? organ.hospital : req.hospital?.name || 'Unknown',
+        toHospital: hospital,
+        action: isArrival ? 'arrived' : 'transferred',
+        nftTokenId: fullTokenId,
+        txHash: mintSubmit.transactionId.toString()
+      });
+
+      res.json({
+        success: true,
+        txHash: mintSubmit.transactionId.toString(),
+        nftTokenId: fullTokenId,
+        message: `Organ ${isArrival ? 'arrival' : 'transfer'} recorded with HTS NFT!`
+      });
     } else {
-      // Mock
+      // Fallback to mock mode
       const organ = organs.find(o => o.tokenId === tokenId);
       if (!organ) {
         return res.status(400).json({ error: 'Organ not found' });
@@ -868,8 +1012,157 @@ app.post('/transplantOrgan', authenticateHospital, async (req, res) => {
       const tx = await organNFT.transplant(tokenId, recipient);
       await tx.wait();
       res.json({ success: true, txHash: tx.hash });
+    } else if (process.env.TOKEN_ID && hederaClient) {
+      // Mint HTS NFT for transplant transaction
+      console.log('🪙 Minting HTS NFT for organ transplant...');
+
+      const organ = organs.find(o => o.tokenId === tokenId);
+      if (!organ || organ.status !== 'Donated') {
+        return res.status(400).json({ error: 'Invalid transplant - organ must be available (not in transit)' });
+      }
+
+      // Create transplant metadata
+      const transplantMetadata = {
+        action: 'transplant',
+        organId: tokenId,
+        organType: organ.organType,
+        bloodType: organ.bloodType,
+        recipient: recipientName,
+        recipientBloodType: recipientBloodType,
+        hospital: recipientHospital,
+        surgeon: surgeon,
+        transplantDate: transplantDate || new Date().toISOString(),
+        timestamp: new Date().toISOString(),
+        txType: 'organ_transplant'
+      };
+
+      // Convert to compact JSON and then to Buffer
+      const metadataString = JSON.stringify(transplantMetadata);
+      let metadata = Buffer.from(metadataString);
+
+      console.log(`📊 Transplant metadata size: ${metadata.length} bytes (Hedera limit: 100 bytes)`);
+
+      if (metadata.length > 100) {
+        console.warn('⚠️  Transplant metadata too large, truncating...');
+        // Further optimize if needed
+        const compactMetadata = {
+          a: 'transplant',
+          id: tokenId,
+          t: organ.organType,
+          b: organ.bloodType,
+          r: recipientName?.substring(0, 8) || 'Unknown',
+          rb: recipientBloodType,
+          h: recipientHospital?.substring(0, 8) || 'Unknown',
+          s: surgeon?.substring(0, 8) || 'Unknown',
+          td: (transplantDate || new Date().toISOString()).split('T')[0],
+          ts: new Date().toISOString().split('T')[0],
+          tx: 'transplant'
+        };
+        const compactString = JSON.stringify(compactMetadata);
+        metadata = Buffer.from(compactString);
+        console.log(`📊 Compacted transplant metadata size: ${metadata.length} bytes`);
+      }
+
+      // Import TokenMintTransaction
+      const { TokenMintTransaction } = await import('@hashgraph/sdk');
+
+      const tokenIdHedera = process.env.TOKEN_ID;
+      const mintTx = await new TokenMintTransaction()
+        .setTokenId(tokenIdHedera)
+        .setMetadata([metadata])
+        .setMaxTransactionFee(new Hbar(10))
+        .freezeWith(hederaClient);
+
+      const mintSign = await mintTx.sign(process.env.HEDERA_PRIVATE_KEY.startsWith('302e020100300506032b657004220420')
+        ? PrivateKey.fromStringDer(process.env.HEDERA_PRIVATE_KEY)
+        : PrivateKey.fromString(process.env.HEDERA_PRIVATE_KEY));
+
+      const mintSubmit = await mintSign.execute(hederaClient);
+      const mintReceipt = await mintSubmit.getReceipt(hederaClient);
+
+      if (!mintReceipt.serials || mintReceipt.serials.length === 0) {
+        throw new Error('Transplant NFT minting failed - no serial number received');
+      }
+
+      const serialNumber = mintReceipt.serials[0].toNumber();
+      const fullTokenId = `${tokenIdHedera}#${serialNumber}`;
+
+      console.log('✅ Transplant HTS NFT minted successfully!');
+      console.log(`🪙 Transplant Token ID: ${fullTokenId}`);
+      console.log(`🔢 Serial Number: ${serialNumber}`);
+      console.log(`🔗 Hedera Explorer: https://hashscan.io/testnet/token/${tokenIdHedera}/${serialNumber}`);
+
+      // Update organ status
+      organ.status = 'Transplanted';
+      organ.recipient = recipient;
+      organ.recipientDetails = {
+        name: recipientName,
+        age: recipientAge,
+        bloodType: recipientBloodType,
+        hospital: recipientHospital,
+        transplantDate: transplantDate || new Date().toISOString(),
+        surgeon: surgeon,
+        notes: notes
+      };
+
+      // Update in Supabase if available, otherwise save to file
+      if (supabase) {
+        await updateOrganInSupabase(tokenId, {
+          status: 'Transplanted',
+          recipient,
+          recipientDetails: organ.recipientDetails
+        });
+      } else {
+        saveOrgansToFile();
+      }
+
+      // Record in ledger with NFT
+      recordLedgerEvent({
+        type: 'OrganTransplanted',
+        organId: tokenId,
+        organType: organ.organType,
+        bloodType: organ.bloodType,
+        donor: organ.donor,
+        hospital: recipientHospital,
+        recipient: recipientName,
+        surgeon: surgeon,
+        receiptNumber: receiptNumber,
+        transplantDate: transplantDate,
+        txHash: mintSubmit.transactionId.toString(),
+        nftTokenId: fullTokenId,
+        timestamp: new Date().toISOString(),
+        details: `Organ ${organ.organType} (${organ.bloodType}) transplanted to ${recipientName} at ${recipientHospital} by ${surgeon} - NFT: ${fullTokenId}`
+      });
+
+      // Send real-time notification
+      notifyClients('organ_transplanted', {
+        organ: {
+          tokenId,
+          organType: organ.organType,
+          bloodType: organ.bloodType,
+          status: organ.status,
+          hospital: recipientHospital
+        },
+        recipient: {
+          name: recipientName,
+          age: recipientAge,
+          bloodType: recipientBloodType
+        },
+        surgeon,
+        transplantDate: transplantDate || new Date().toISOString(),
+        nftTokenId: fullTokenId,
+        txHash: mintSubmit.transactionId.toString(),
+        hospital: req.hospital?.name || 'Unknown Hospital'
+      });
+
+      res.json({
+        success: true,
+        txHash: mintSubmit.transactionId.toString(),
+        nftTokenId: fullTokenId,
+        message: 'Organ transplant completed with HTS NFT!'
+      });
     } else {
-      // Mock
+      // Fallback to mock mode
       const organ = organs.find(o => o.tokenId === tokenId);
       if (!organ || organ.status !== 'Donated') {
         return res.status(400).json({ error: 'Invalid transplant - organ must be available (not in transit)' });
@@ -1045,6 +1338,86 @@ app.post('/createOrganRequest', authenticateHospital, async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields: organId and requestingHospital' });
     }
 
+    const organ = organs.find(o => o.tokenId === parseInt(organId));
+    if (!organ) {
+      return res.status(400).json({ error: 'Organ not found' });
+    }
+
+    // Mint HTS NFT for request creation
+    let nftTokenId = null;
+    if (process.env.TOKEN_ID && hederaClient) {
+      console.log('🪙 Minting HTS NFT for organ request...');
+
+      // Create request metadata
+      const requestMetadata = {
+        action: 'request_created',
+        requestId: `REQ-${String(Date.now()).slice(-6)}`,
+        organId: parseInt(organId),
+        organType: organ.organType,
+        bloodType: organ.bloodType,
+        requestingHospital,
+        owningHospital: owningHospital || 'General Hospital',
+        requesterAddress,
+        timestamp: new Date().toISOString(),
+        txType: 'organ_request'
+      };
+
+      // Convert to compact JSON and then to Buffer
+      const metadataString = JSON.stringify(requestMetadata);
+      let metadata = Buffer.from(metadataString);
+
+      console.log(`📊 Request metadata size: ${metadata.length} bytes (Hedera limit: 100 bytes)`);
+
+      if (metadata.length > 100) {
+        console.warn('⚠️  Request metadata too large, truncating...');
+        // Further optimize if needed
+        const compactMetadata = {
+          a: 'request_created',
+          rid: `REQ-${String(Date.now()).slice(-6)}`,
+          id: parseInt(organId),
+          t: organ.organType,
+          b: organ.bloodType,
+          rh: requestingHospital.substring(0, 8),
+          oh: (owningHospital || 'General Hospital').substring(0, 8),
+          ra: requesterAddress?.substring(0, 8) || 'Unknown',
+          ts: new Date().toISOString().split('T')[0],
+          tx: 'request'
+        };
+        const compactString = JSON.stringify(compactMetadata);
+        metadata = Buffer.from(compactString);
+        console.log(`📊 Compacted request metadata size: ${metadata.length} bytes`);
+      }
+
+      // Import TokenMintTransaction
+      const { TokenMintTransaction } = await import('@hashgraph/sdk');
+
+      const tokenIdHedera = process.env.TOKEN_ID;
+      const mintTx = await new TokenMintTransaction()
+        .setTokenId(tokenIdHedera)
+        .setMetadata([metadata])
+        .setMaxTransactionFee(new Hbar(10))
+        .freezeWith(hederaClient);
+
+      const mintSign = await mintTx.sign(process.env.HEDERA_PRIVATE_KEY.startsWith('302e020100300506032b657004220420')
+        ? PrivateKey.fromStringDer(process.env.HEDERA_PRIVATE_KEY)
+        : PrivateKey.fromString(process.env.HEDERA_PRIVATE_KEY));
+
+      const mintSubmit = await mintSign.execute(hederaClient);
+      const mintReceipt = await mintSubmit.getReceipt(hederaClient);
+
+      if (!mintReceipt.serials || mintReceipt.serials.length === 0) {
+        throw new Error('Request NFT minting failed - no serial number received');
+      }
+
+      const serialNumber = mintReceipt.serials[0].toNumber();
+      nftTokenId = `${tokenIdHedera}#${serialNumber}`;
+
+      console.log('✅ Request HTS NFT minted successfully!');
+      console.log(`🪙 Request Token ID: ${nftTokenId}`);
+      console.log(`🔢 Serial Number: ${serialNumber}`);
+      console.log(`🔗 Hedera Explorer: https://hashscan.io/testnet/token/${tokenIdHedera}/${serialNumber}`);
+    }
+
     const request = {
       requestId: `REQ-${String(Date.now()).slice(-6)}`,
       organId: parseInt(organId),
@@ -1052,7 +1425,8 @@ app.post('/createOrganRequest', authenticateHospital, async (req, res) => {
       owningHospital: owningHospital || 'General Hospital',
       status: 'pending',
       requesterAddress,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      nftTokenId
     };
 
     // Update organ status to Requested and save request
@@ -1061,7 +1435,6 @@ app.post('/createOrganRequest', authenticateHospital, async (req, res) => {
       await createOrganRequestInSupabase(request);
     } else {
       // Update organ status in file storage
-      const organ = organs.find(o => o.tokenId === parseInt(organId));
       if (organ) {
         organ.status = 'Requested';
         saveOrgansToFile();
@@ -1071,7 +1444,48 @@ app.post('/createOrganRequest', authenticateHospital, async (req, res) => {
       saveRequestsToFile();
     }
 
-    res.json({ success: true, requestId: request.requestId, message: 'Organ transfer request created successfully' });
+    // Record in ledger with NFT
+    recordLedgerEvent({
+      type: 'OrganRequestCreated',
+      organId: parseInt(organId),
+      organType: organ.organType,
+      bloodType: organ.bloodType,
+      requestingHospital,
+      owningHospital: owningHospital || 'General Hospital',
+      requesterAddress,
+      requestId: request.requestId,
+      nftTokenId,
+      timestamp: new Date().toISOString(),
+      details: `Organ request ${request.requestId} created for ${organ.organType} (${organ.bloodType}) from ${requestingHospital} to ${owningHospital} - NFT: ${nftTokenId || 'None'}`
+    });
+
+    // Send real-time notification
+    notifyClients('request_created', {
+      request: {
+        requestId: request.requestId,
+        organId: parseInt(organId),
+        requestingHospital,
+        owningHospital: owningHospital || 'General Hospital',
+        status: 'pending',
+        requesterAddress,
+        createdAt: request.createdAt,
+        nftTokenId
+      },
+      organ: {
+        tokenId: organ.tokenId,
+        organType: organ.organType,
+        bloodType: organ.bloodType,
+        status: 'Requested'
+      },
+      hospital: req.hospital?.name || 'Unknown Hospital'
+    });
+
+    res.json({
+      success: true,
+      requestId: request.requestId,
+      nftTokenId,
+      message: `Organ transfer request created${nftTokenId ? ` with HTS NFT: ${nftTokenId}` : ' successfully'}`
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -1115,20 +1529,105 @@ app.put('/updateOrganRequest', authenticateHospital, async (req, res) => {
       return res.status(400).json({ error: 'Missing required fields or invalid status. Must provide requestId and status (accepted or rejected)' });
     }
 
+    // Get request data first
+    let request = null;
+    if (supabase) {
+      const requestData = await getOrganRequestsFromSupabase();
+      request = requestData.find(r => r.request_id === requestId);
+    } else {
+      request = requests.find(r => r.requestId === requestId);
+    }
+
+    if (!request) {
+      return res.status(404).json({ error: 'Request not found' });
+    }
+
+    // Mint HTS NFT for request update
+    let nftTokenId = null;
+    if (process.env.TOKEN_ID && hederaClient) {
+      console.log('🪙 Minting HTS NFT for request update...');
+
+      const organ = organs.find(o => o.tokenId === parseInt(organId || request.organId));
+
+      // Create request update metadata
+      const updateMetadata = {
+        action: `request_${status}`,
+        requestId,
+        organId: parseInt(organId || request.organId),
+        organType: organ?.organType || 'Unknown',
+        bloodType: organ?.bloodType || 'Unknown',
+        requestingHospital: request.requestingHospital,
+        owningHospital: request.owningHospital,
+        status,
+        timestamp: new Date().toISOString(),
+        txType: 'request_update'
+      };
+
+      // Convert to compact JSON and then to Buffer
+      const metadataString = JSON.stringify(updateMetadata);
+      let metadata = Buffer.from(metadataString);
+
+      console.log(`📊 Request update metadata size: ${metadata.length} bytes (Hedera limit: 100 bytes)`);
+
+      if (metadata.length > 100) {
+        console.warn('⚠️  Request update metadata too large, truncating...');
+        // Further optimize if needed
+        const compactMetadata = {
+          a: `request_${status}`,
+          rid: requestId,
+          id: parseInt(organId || request.organId),
+          t: organ?.organType?.substring(0, 5) || 'Unk',
+          b: organ?.bloodType || 'Unk',
+          rh: request.requestingHospital?.substring(0, 8) || 'Unknown',
+          oh: request.owningHospital?.substring(0, 8) || 'Unknown',
+          s: status,
+          ts: new Date().toISOString().split('T')[0],
+          tx: 'request_update'
+        };
+        const compactString = JSON.stringify(compactMetadata);
+        metadata = Buffer.from(compactString);
+        console.log(`📊 Compacted request update metadata size: ${metadata.length} bytes`);
+      }
+
+      // Import TokenMintTransaction
+      const { TokenMintTransaction } = await import('@hashgraph/sdk');
+
+      const tokenIdHedera = process.env.TOKEN_ID;
+      const mintTx = await new TokenMintTransaction()
+        .setTokenId(tokenIdHedera)
+        .setMetadata([metadata])
+        .setMaxTransactionFee(new Hbar(10))
+        .freezeWith(hederaClient);
+
+      const mintSign = await mintTx.sign(process.env.HEDERA_PRIVATE_KEY.startsWith('302e020100300506032b657004220420')
+        ? PrivateKey.fromStringDer(process.env.HEDERA_PRIVATE_KEY)
+        : PrivateKey.fromString(process.env.HEDERA_PRIVATE_KEY));
+
+      const mintSubmit = await mintSign.execute(hederaClient);
+      const mintReceipt = await mintSubmit.getReceipt(hederaClient);
+
+      if (!mintReceipt.serials || mintReceipt.serials.length === 0) {
+        throw new Error('Request update NFT minting failed - no serial number received');
+      }
+
+      const serialNumber = mintReceipt.serials[0].toNumber();
+      nftTokenId = `${tokenIdHedera}#${serialNumber}`;
+
+      console.log('✅ Request update HTS NFT minted successfully!');
+      console.log(`🪙 Request Update Token ID: ${nftTokenId}`);
+      console.log(`🔢 Serial Number: ${serialNumber}`);
+      console.log(`🔗 Hedera Explorer: https://hashscan.io/testnet/token/${tokenIdHedera}/${serialNumber}`);
+    }
+
     if (supabase) {
       await updateOrganRequestInSupabase(requestId, { status });
 
       // If accepted, update organ status and transfer it
       if (status === 'accepted' && organId) {
-        const requestData = await getOrganRequestsFromSupabase();
-        const request = requestData.find(r => r.request_id === requestId);
-
-        if (request) {
-          await updateOrganInSupabase(organId, {
-            status: 'Transferred',
-            hospital: request.requesting_hospital
-          });
-        }
+        await updateOrganInSupabase(organId, {
+          status: 'Transferred',
+          hospital: request.requesting_hospital
+        });
       } else if (status === 'rejected' && organId) {
         // If rejected, reset organ status to Donated
         await updateOrganInSupabase(organId, { status: 'Donated' });
@@ -1159,21 +1658,42 @@ app.put('/updateOrganRequest', authenticateHospital, async (req, res) => {
       }
     }
 
+    // Record in ledger with NFT
+    const organ = organs.find(o => o.tokenId === parseInt(organId || request.organId));
+    recordLedgerEvent({
+      type: 'OrganRequestUpdated',
+      organId: parseInt(organId || request.organId),
+      organType: organ?.organType || 'Unknown',
+      bloodType: organ?.bloodType || 'Unknown',
+      requestingHospital: request.requestingHospital,
+      owningHospital: request.owningHospital,
+      requestId,
+      status,
+      nftTokenId,
+      timestamp: new Date().toISOString(),
+      details: `Organ request ${requestId} ${status} for ${organ?.organType || 'Unknown'} (${organ?.bloodType || 'Unknown'}) - NFT: ${nftTokenId || 'None'}`
+    });
+
     // Send real-time notification
     notifyClients('request_updated', {
       request: {
         requestId,
-        organId,
-        requestingHospital: request?.requestingHospital || 'Unknown',
-        owningHospital: request?.owningHospital || 'Unknown',
+        organId: parseInt(organId || request.organId),
+        requestingHospital: request.requestingHospital,
+        owningHospital: request.owningHospital,
         status,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
+        nftTokenId
       },
       action: status,
       hospital: req.hospital?.name || 'Unknown Hospital'
     });
 
-    res.json({ success: true, message: `Request ${requestId} has been ${status}` });
+    res.json({
+      success: true,
+      nftTokenId,
+      message: `Request ${requestId} has been ${status}${nftTokenId ? ` with HTS NFT: ${nftTokenId}` : ''}`
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
