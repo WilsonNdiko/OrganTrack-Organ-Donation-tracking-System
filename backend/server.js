@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
 import { ethers } from 'ethers';
-import { Client, PrivateKey, AccountId } from '@hashgraph/sdk';
+import { Client, PrivateKey, AccountId, Hbar } from '@hashgraph/sdk';
 import fs from 'fs';
 import 'dotenv/config';
 import fetch from 'node-fetch'; // For Mirror Node API calls
