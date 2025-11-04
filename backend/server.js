@@ -801,40 +801,26 @@ app.post('/transferOrgan', authenticateHospital, async (req, res) => {
       // Check if this is an arrival (organ is in transit and staying at same hospital)
       const isArrival = organ.status === 'Transferred' && organ.hospital === hospital;
 
-      // Create transfer metadata
+      // Create ultra-compact transfer metadata (must be under 100 bytes)
       const transferMetadata = {
-        action: isArrival ? 'arrival' : 'transfer',
-        organId: tokenId,
-        organType: organ.organType,
-        bloodType: organ.bloodType,
-        fromHospital: isArrival ? organ.hospital : req.hospital?.name || 'Unknown',
-        toHospital: hospital,
-        timestamp: new Date().toISOString(),
-        txType: 'organ_transfer'
+        a: isArrival ? 'A' : 'T',  // Action: A=Arrival, T=Transfer
+        i: tokenId,                // organ ID
+        t: organ.organType.substring(0, 3), // organ type (first 3 chars)
+        b: organ.bloodType,        // blood type
+        f: (isArrival ? organ.hospital : req.hospital?.name || 'Unk').substring(0, 4), // from hospital (4 chars)
+        h: hospital.substring(0, 4) // to hospital (4 chars)
       };
 
       // Convert to compact JSON and then to Buffer
       const metadataString = JSON.stringify(transferMetadata);
-      let metadata = Buffer.from(metadataString);
+      const metadata = Buffer.from(metadataString);
 
       console.log(`📊 Transfer metadata size: ${metadata.length} bytes (Hedera limit: 100 bytes)`);
 
       if (metadata.length > 100) {
-        console.warn('⚠️  Transfer metadata too large, truncating...');
-        // Further optimize if needed
-        const compactMetadata = {
-          a: isArrival ? 'arrival' : 'transfer',
-          id: tokenId,
-          t: organ.organType,
-          b: organ.bloodType,
-          f: (isArrival ? organ.hospital : req.hospital?.name || 'Unknown').substring(0, 8),
-          to: hospital.substring(0, 8),
-          ts: new Date().toISOString().split('T')[0],
-          tx: 'transfer'
-        };
-        const compactString = JSON.stringify(compactMetadata);
-        metadata = Buffer.from(compactString);
-        console.log(`📊 Compacted transfer metadata size: ${metadata.length} bytes`);
+        console.error('❌ Transfer metadata still too large even after ultra-compaction!');
+        console.log('Metadata content:', metadataString);
+        throw new Error(`Transfer metadata size ${metadata.length} bytes exceeds Hedera limit of 100 bytes`);
       }
 
       // Import TokenMintTransaction
