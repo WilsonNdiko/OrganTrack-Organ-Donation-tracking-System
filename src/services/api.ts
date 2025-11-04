@@ -1,6 +1,7 @@
 // API service for backend connection
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://orgflow-backend-t55x.onrender.com';
+const API_KEY = 'orgflow-dev-api-key'; // Development API key
 
 export interface CreateOrganRequest {
   donor: string;
@@ -71,7 +72,10 @@ export const api = {
   createOrgan: async (data: CreateOrganRequest) => {
     const response = await fetch(`${API_BASE_URL}/createOrgan`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY
+      },
       body: JSON.stringify(data),
     });
     return response.json();
@@ -80,7 +84,10 @@ export const api = {
   transferOrgan: async (data: TransferRequest) => {
     const response = await fetch(`${API_BASE_URL}/transferOrgan`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY
+      },
       body: JSON.stringify(data),
     });
     return response.json();
@@ -89,7 +96,10 @@ export const api = {
   transplantOrgan: async (data: TransplantRequest) => {
     const response = await fetch(`${API_BASE_URL}/transplantOrgan`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY
+      },
       body: JSON.stringify(data),
     });
     return response.json();
@@ -115,7 +125,10 @@ export const api = {
   }) => {
     const response = await fetch(`${API_BASE_URL}/createOrganRequest`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY
+      },
       body: JSON.stringify(data),
     });
     return response.json();
@@ -133,7 +146,10 @@ export const api = {
   }) => {
     const response = await fetch(`${API_BASE_URL}/updateOrganRequest`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY
+      },
       body: JSON.stringify(data),
     });
     return response.json();

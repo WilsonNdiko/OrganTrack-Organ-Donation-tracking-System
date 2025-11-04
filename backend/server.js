@@ -1,11 +1,14 @@
 import express from 'express';
 import cors from 'cors';
+import jwt from 'jsonwebtoken';
 import { ethers } from 'ethers';
 import { Client, PrivateKey, AccountId } from '@hashgraph/sdk';
 import fs from 'fs';
 import 'dotenv/config';
 import fetch from 'node-fetch'; // For Mirror Node API calls
 import { createClient } from '@supabase/supabase-js';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 
 const app = express();
 
@@ -15,10 +18,11 @@ const corsOptions = {
     'https://organ-track-organ-donation-tracking.vercel.app',
     'http://localhost:3000',
     'http://localhost:8080',
+    'http://localhost:8081',
     'http://localhost:3002'
   ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-api-key'],
   credentials: true
 };
 
@@ -27,6 +31,102 @@ app.use(express.json());
 
 const port = process.env.PORT || 3002;
 
+// Create HTTP server for WebSocket support
+const server = createServer(app);
+
+// WebSocket Configuration with Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: corsOptions.origin,
+    methods: ['GET', 'POST'],
+    credentials: true
+  },
+  transports: ['websocket', 'polling']
+});
+
+// Connected clients tracking
+const connectedClients = new Map();
+
+// WebSocket notification functions
+function notifyClients(event, data) {
+  console.log(`📡 Broadcasting ${event} to ${connectedClients.size} clients`);
+  io.emit(event, {
+    ...data,
+    timestamp: new Date().toISOString()
+  });
+}
+
+function notifyHospital(hospitalId, event, data) {
+  // Send to specific hospital room
+  io.to(`hospital_${hospitalId}`).emit(event, {
+    ...data,
+    timestamp: new Date().toISOString()
+  });
+}
+
+// WebSocket connection handling
+io.on('connection', (socket) => {
+  console.log(`🔌 Client connected: ${socket.id}`);
+
+  // Handle hospital authentication
+  socket.on('authenticate', (data) => {
+    const { hospitalId, token } = data;
+
+    try {
+      // Verify JWT token
+      const decoded = jwt.verify(token, JWT_SECRET);
+
+      // Join hospital room
+      socket.join(`hospital_${hospitalId}`);
+      socket.hospitalId = hospitalId;
+      socket.authenticated = true;
+
+      connectedClients.set(socket.id, {
+        hospitalId,
+        connectedAt: new Date().toISOString()
+      });
+
+      console.log(`🏥 Hospital ${hospitalId} authenticated via WebSocket`);
+
+      socket.emit('authenticated', {
+        success: true,
+        hospital: decoded,
+        message: 'Successfully authenticated'
+      });
+
+      // Send current system status
+      socket.emit('system_status', {
+        totalOrgans: organs.length,
+        availableOrgans: organs.filter(o => o.status === 'Donated').length,
+        pendingRequests: requests.filter(r => r.status === 'pending').length,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      socket.emit('authentication_failed', {
+        success: false,
+        error: 'Invalid token'
+      });
+    }
+  });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    if (connectedClients.has(socket.id)) {
+      const client = connectedClients.get(socket.id);
+      console.log(`🔌 Hospital ${client.hospitalId} disconnected`);
+      connectedClients.delete(socket.id);
+    } else {
+      console.log(`🔌 Anonymous client disconnected: ${socket.id}`);
+    }
+  });
+
+  // Handle ping for connection health
+  socket.on('ping', () => {
+    socket.emit('pong', { timestamp: new Date().toISOString() });
+  });
+});
+
 // Supabase Configuration
 let supabase = null;
 if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
@@ -34,6 +134,44 @@ if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
   console.log('🗄️  Supabase database connected');
 } else {
   console.log('📁 Using JSON file storage (no Supabase configured)');
+}
+
+// Authentication Configuration
+const JWT_SECRET = process.env.JWT_SECRET || 'orgflow-development-secret-key-change-in-production';
+const API_KEY = process.env.API_KEY || 'orgflow-dev-api-key';
+
+// Hospital authentication middleware
+function authenticateHospital(req, res, next) {
+  const authHeader = req.headers.authorization;
+  const apiKey = req.headers['x-api-key'];
+
+  // Check API key first (simpler for hospitals)
+  if (apiKey && apiKey === API_KEY) {
+    req.hospital = { id: 'authenticated-hospital', name: 'Authenticated Hospital' };
+    return next();
+  }
+
+  // Check JWT token
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET);
+      req.hospital = decoded;
+      return next();
+    } catch (error) {
+      return res.status(401).json({ error: 'Invalid or expired token' });
+    }
+  }
+
+  return res.status(401).json({ error: 'Authentication required. Provide API key or JWT token.' });
+}
+
+// Admin-only middleware
+function requireAdmin(req, res, next) {
+  if (!req.hospital || req.hospital.role !== 'admin') {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
 }
 
 // Hedera Configuration
@@ -77,12 +215,15 @@ try {
       console.log('✅ Ethers wallet configured with hex private key');
     }
 
-    // Initialize contract if address is available (otherwise use mock)
+    // Initialize contract if address is available, otherwise check for HTS token
     if (process.env.CONTRACT_ADDRESS) {
       organNFT = new ethers.Contract(process.env.CONTRACT_ADDRESS, abi, wallet);
       console.log('📋 Contract initialized at:', process.env.CONTRACT_ADDRESS);
+    } else if (process.env.TOKEN_ID) {
+      console.log('🪙 HTS Token available for direct NFT minting:', process.env.TOKEN_ID);
+      console.log('✅ Real Hedera HTS NFT minting enabled with optimized metadata');
     } else {
-      console.log('ℹ️  Hedera connected but no contract deployed yet - using enhanced mock mode');
+      console.log('ℹ️  Hedera connected but no contract or HTS token deployed yet - using enhanced mock mode');
     }
   } else {
     console.log('⚠️  Missing Hedera credentials, using basic mock mode');
@@ -404,6 +545,41 @@ initializeMockData();
 
 // API Endpoints
 
+// Authentication endpoints
+// POST /auth/login - Hospital login with API key
+app.post('/auth/login', (req, res) => {
+  const { hospitalId, apiKey } = req.body;
+
+  // Simple API key validation (in production, use proper authentication)
+  if (apiKey === API_KEY) {
+    const token = jwt.sign({
+      hospitalId,
+      name: `Hospital ${hospitalId}`,
+      role: 'hospital'
+    }, JWT_SECRET, { expiresIn: '24h' });
+
+    res.json({
+      success: true,
+      token,
+      hospital: {
+        id: hospitalId,
+        name: `Hospital ${hospitalId}`,
+        role: 'hospital'
+      }
+    });
+  } else {
+    res.status(401).json({ error: 'Invalid credentials' });
+  }
+});
+
+// GET /auth/verify - Verify JWT token
+app.get('/auth/verify', authenticateHospital, (req, res) => {
+  res.json({
+    success: true,
+    hospital: req.hospital
+  });
+});
+
 // Mirror Node API functions
 async function fetchTransactionInfo(txHash) {
   try {
@@ -415,16 +591,142 @@ async function fetchTransactionInfo(txHash) {
   }
 }
 
-// POST /createOrgan - Mint new organ NFT
-app.post('/createOrgan', async (req, res) => {
+// POST /createOrgan - Mint new organ NFT (requires authentication)
+app.post('/createOrgan', authenticateHospital, async (req, res) => {
   try {
     const { donor, organType, bloodType, tokenURI, hospital, recipientName, recipientBloodType, recipientContact } = req.body;
+
     if (organNFT) {
+      // Use smart contract minting
       const tx = await organNFT.mintOrgan(donor, organType, bloodType, tokenURI || '');
       await tx.wait();
       res.json({ success: true, txHash: tx.hash, tokenId: nextTokenId++ });
+    } else if (process.env.TOKEN_ID && hederaClient) {
+      // Use real Hedera HTS NFT minting with optimized metadata
+      console.log('🪙 Minting real HTS NFT with optimized metadata...');
+
+      // Create optimized metadata (under 100 bytes for Hedera limits)
+      const optimizedMetadata = {
+        name: `${organType} Organ`,
+        type: organType,
+        blood: bloodType,
+        hosp: hospital?.substring(0, 10) || 'Unknown', // Truncate hospital name
+        date: new Date().toISOString().split('T')[0], // Just date, not full ISO
+        recip: recipientName?.substring(0, 8) || 'Pending' // Truncate recipient name
+      };
+
+      // Convert to compact JSON and then to Buffer
+      const metadataString = JSON.stringify(optimizedMetadata);
+      const metadata = Buffer.from(metadataString);
+
+      console.log(`📊 Metadata size: ${metadata.length} bytes (Hedera limit: 100 bytes)`);
+
+      if (metadata.length > 100) {
+        console.warn('⚠️  Metadata too large, truncating...');
+        // Further optimize if needed
+        const compactMetadata = {
+          n: `${organType} Organ`,
+          t: organType,
+          b: bloodType,
+          h: hospital?.substring(0, 5) || 'Unk',
+          d: new Date().toISOString().split('T')[0],
+          r: recipientName?.substring(0, 5) || 'Pend'
+        };
+        const compactString = JSON.stringify(compactMetadata);
+        metadata = Buffer.from(compactString);
+        console.log(`📊 Compacted metadata size: ${metadata.length} bytes`);
+      }
+
+      // Import TokenMintTransaction
+      const { TokenMintTransaction } = await import('@hashgraph/sdk');
+
+      const tokenId = process.env.TOKEN_ID;
+      const mintTx = await new TokenMintTransaction()
+        .setTokenId(tokenId)
+        .setMetadata([metadata])
+        .setMaxTransactionFee(new Hbar(10))
+        .freezeWith(hederaClient);
+
+      const mintSign = await mintTx.sign(process.env.HEDERA_PRIVATE_KEY.startsWith('302e020100300506032b657004220420')
+        ? PrivateKey.fromStringDer(process.env.HEDERA_PRIVATE_KEY)
+        : PrivateKey.fromString(process.env.HEDERA_PRIVATE_KEY));
+
+      const mintSubmit = await mintSign.execute(hederaClient);
+      const mintReceipt = await mintSubmit.getReceipt(hederaClient);
+
+      if (!mintReceipt.serials || mintReceipt.serials.length === 0) {
+        throw new Error('NFT minting failed - no serial number received');
+      }
+
+      const serialNumber = mintReceipt.serials[0].toNumber();
+      const fullTokenId = `${tokenId}#${serialNumber}`;
+
+      console.log('✅ Real HTS NFT minted successfully!');
+      console.log(`🪙 Token ID: ${fullTokenId}`);
+      console.log(`🔢 Serial Number: ${serialNumber}`);
+      console.log(`🔗 Hedera Explorer: https://hashscan.io/testnet/token/${tokenId}/${serialNumber}`);
+
+      // Create organ record with real token data
+      const organ = {
+        tokenId: serialNumber, // Use serial number as tokenId for frontend compatibility
+        organType,
+        bloodType,
+        status: 'Donated',
+        donor,
+        tokenURI: fullTokenId, // Store full token ID
+        createdAt: new Date().toISOString(),
+        hospital: hospital || null,
+        recipient: null,
+        metadata: optimizedMetadata, // Store metadata for reference
+        txHash: mintSubmit.transactionId.toString()
+      };
+
+      organs.push(organ);
+
+      // Save to Supabase if available, otherwise to file
+      if (supabase) {
+        await saveOrganToSupabase(organ);
+      } else {
+        saveOrgansToFile();
+      }
+
+      // Record in ledger with real transaction hash
+      recordLedgerEvent({
+        type: 'OrganRegistered',
+        organId: serialNumber,
+        organType: organ.organType,
+        bloodType: organ.bloodType,
+        hospital: organ.hospital,
+        donor: organ.donor,
+        recipient: recipientName || 'Pending',
+        txHash: mintSubmit.transactionId.toString(),
+        timestamp: new Date().toISOString(),
+        details: `Real HTS NFT ${organ.organType} (${organ.bloodType}) minted at ${organ.hospital} for recipient ${recipientName || 'Pending'}`
+      });
+
+      // Send real-time notification
+      notifyClients('organ_created', {
+        organ: {
+          tokenId: serialNumber,
+          organType: organ.organType,
+          bloodType: organ.bloodType,
+          status: organ.status,
+          hospital: organ.hospital,
+          createdAt: organ.createdAt
+        },
+        hospital: req.hospital?.name || 'Unknown Hospital'
+      });
+
+      res.json({
+        success: true,
+        txHash: mintSubmit.transactionId.toString(),
+        tokenId: serialNumber,
+        fullTokenId,
+        message: 'Real Hedera HTS NFT minted successfully!'
+      });
     } else {
-      // Mock
+      // Fallback to mock mode
+      console.log('📝 Using mock NFT creation (no contract or HTS token available)');
       const organ = {
         tokenId: nextTokenId++,
         organType,
@@ -432,8 +734,8 @@ app.post('/createOrgan', async (req, res) => {
         status: 'Donated',
         donor,
         tokenURI,
-        createdAt: new Date().toISOString(), // Always ISO string
-        hospital: hospital || null, // Include hospital from request
+        createdAt: new Date().toISOString(),
+        hospital: hospital || null,
         recipient: null,
       };
       organs.push(organ);
@@ -455,18 +757,32 @@ app.post('/createOrgan', async (req, res) => {
         donor: organ.donor,
         recipient: recipientName || 'Pending',
         timestamp: new Date().toISOString(),
-        details: `Organ ${organ.organType} (${organ.bloodType}) registered at ${organ.hospital} for recipient ${recipientName || 'Pending'}`
+        details: `Mock organ ${organ.organType} (${organ.bloodType}) registered at ${organ.hospital} for recipient ${recipientName || 'Pending'}`
+      });
+
+      // Send real-time notification
+      notifyClients('organ_created', {
+        organ: {
+          tokenId: organ.tokenId,
+          organType: organ.organType,
+          bloodType: organ.bloodType,
+          status: organ.status,
+          hospital: organ.hospital,
+          createdAt: organ.createdAt
+        },
+        hospital: req.hospital?.name || 'Unknown Hospital'
       });
 
       res.json({ success: true, txHash: `mock_${organ.tokenId}`, tokenId: organ.tokenId });
     }
   } catch (error) {
+    console.error('❌ Organ creation failed:', error);
     res.status(500).json({ error: error.message });
   }
 });
 
-// POST /transferOrgan - Transfer organ to hospital or mark as arrived
-app.post('/transferOrgan', async (req, res) => {
+// POST /transferOrgan - Transfer organ to hospital or mark as arrived (requires authentication)
+app.post('/transferOrgan', authenticateHospital, async (req, res) => {
   try {
     const { tokenId, hospital } = req.body;
     if (organNFT) {
@@ -522,6 +838,21 @@ app.post('/transferOrgan', async (req, res) => {
         saveOrgansToFile();
       }
 
+      // Send real-time notification
+      const eventType = isArrival ? 'organ_arrived' : 'organ_transferred';
+      notifyClients(eventType, {
+        organ: {
+          tokenId,
+          organType: organ.organType,
+          bloodType: organ.bloodType,
+          status: organ.status,
+          hospital: organ.hospital
+        },
+        fromHospital: isArrival ? organ.hospital : req.hospital?.name || 'Unknown',
+        toHospital: hospital,
+        action: isArrival ? 'arrived' : 'transferred'
+      });
+
       res.json({ success: true, txHash: `mock_${isArrival ? 'arrival' : 'transfer'}_${tokenId}` });
     }
   } catch (error) {
@@ -529,8 +860,8 @@ app.post('/transferOrgan', async (req, res) => {
   }
 });
 
-// POST /transplantOrgan - Transplant organ to recipient
-app.post('/transplantOrgan', async (req, res) => {
+// POST /transplantOrgan - Transplant organ to recipient (requires authentication)
+app.post('/transplantOrgan', authenticateHospital, async (req, res) => {
   try {
     const { tokenId, recipient, recipientName, recipientAge, recipientBloodType, recipientHospital, receiptNumber, transplantDate, surgeon, notes } = req.body;
     if (organNFT) {
@@ -580,6 +911,25 @@ app.post('/transplantOrgan', async (req, res) => {
         transplantDate: transplantDate,
         timestamp: new Date().toISOString(),
         details: `Organ ${organ.organType} (${organ.bloodType}) transplanted to ${recipientName} at ${recipientHospital} by ${surgeon}`
+      });
+
+      // Send real-time notification
+      notifyClients('organ_transplanted', {
+        organ: {
+          tokenId,
+          organType: organ.organType,
+          bloodType: organ.bloodType,
+          status: organ.status,
+          hospital: recipientHospital
+        },
+        recipient: {
+          name: recipientName,
+          age: recipientAge,
+          bloodType: recipientBloodType
+        },
+        surgeon,
+        transplantDate: transplantDate || new Date().toISOString(),
+        hospital: req.hospital?.name || 'Unknown Hospital'
       });
 
       res.json({ success: true, txHash: `mock_transplant_${tokenId}` });
@@ -686,8 +1036,8 @@ app.get('/analytics', async (req, res) => {
   }
 });
 
-// POST /createOrganRequest - Create a new organ transfer request
-app.post('/createOrganRequest', async (req, res) => {
+// POST /createOrganRequest - Create a new organ transfer request (requires authentication)
+app.post('/createOrganRequest', authenticateHospital, async (req, res) => {
   try {
     const { organId, requestingHospital, owningHospital, requesterAddress } = req.body;
 
@@ -756,8 +1106,8 @@ app.get('/organRequests', async (req, res) => {
   }
 });
 
-// PUT /updateOrganRequest - Accept or reject organ request
-app.put('/updateOrganRequest', async (req, res) => {
+// PUT /updateOrganRequest - Accept or reject organ request (requires authentication)
+app.put('/updateOrganRequest', authenticateHospital, async (req, res) => {
   try {
     const { requestId, status, organId } = req.body;
 
@@ -808,6 +1158,20 @@ app.put('/updateOrganRequest', async (req, res) => {
         }
       }
     }
+
+    // Send real-time notification
+    notifyClients('request_updated', {
+      request: {
+        requestId,
+        organId,
+        requestingHospital: request?.requestingHospital || 'Unknown',
+        owningHospital: request?.owningHospital || 'Unknown',
+        status,
+        updatedAt: new Date().toISOString()
+      },
+      action: status,
+      hospital: req.hospital?.name || 'Unknown Hospital'
+    });
 
     res.json({ success: true, message: `Request ${requestId} has been ${status}` });
   } catch (error) {
@@ -898,6 +1262,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.listen(port, () => {
-  console.log(`Server running on port ${port}`);
+server.listen(port, () => {
+  console.log(`🚀 OrgFlow API server running on port ${port}`);
+  console.log(`🔌 WebSocket server ready for real-time notifications`);
+  console.log(`📊 Connected clients: ${connectedClients.size}`);
 });

@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useWebSocket } from "@/hooks/useWebSocket";
 import { api, Organ as BackendOrgan, OrganRequest } from "../../../src/services/api";
 
 type Status = "available" | "in-transit" | "transplanted" | "requested";
@@ -69,6 +70,9 @@ const Registry = () => {
     recipientContact: "",
   });
   const { toast } = useToast();
+
+  // WebSocket integration for real-time notifications
+  const { isConnected, lastMessage, connect } = useWebSocket();
 
   // Fetch organs from backend
   const fetchOrgans = useCallback(async () => {
@@ -337,13 +341,20 @@ const Registry = () => {
   // Accept Request - Transfer organ to requesting hospital and change status
   const acceptRequest = async (request: OrganRequest) => {
     const organ = organs.find(o => o.tokenId.toString() === request.organ_id?.toString());
-    if (!organ) return;
+    if (!organ) {
+      toast({
+        title: "Organ Not Found",
+        description: "Could not find the organ associated with this request.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       await api.updateOrganRequest({
         requestId: request.request_id,
         status: 'accepted',
-        organId: request.organ_id
+        organId: parseInt(request.organ_id?.toString() || '0')
       });
 
       toast({
@@ -367,17 +378,25 @@ const Registry = () => {
   // Reject Request - Change organ status back to "Donated"
   const rejectRequest = async (request: OrganRequest) => {
     const organ = organs.find(o => o.tokenId.toString() === request.organ_id?.toString());
+    if (!organ) {
+      toast({
+        title: "Organ Not Found",
+        description: "Could not find the organ associated with this request.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       await api.updateOrganRequest({
         requestId: request.request_id,
         status: 'rejected',
-        organId: request.organ_id
+        organId: parseInt(request.organ_id?.toString() || '0')
       });
 
       toast({
         title: "❌ Request Rejected",
-        description: `Request from ${request.requesting_hospital} has been rejected - ${organ?.organType} ${organ?.tokenId} remains available`,
+        description: `Request from ${request.requesting_hospital} has been rejected - ${organ.organType} ${organ.tokenId} remains available`,
       });
 
       // Refresh data
@@ -392,6 +411,12 @@ const Registry = () => {
       });
     }
   };
+
+  // Connect to WebSocket on component mount
+  useEffect(() => {
+    console.log('🔌 Connecting to WebSocket for real-time notifications...');
+    connect();
+  }, [connect]);
 
   // Load organs and requests on component mount
   useEffect(() => {
@@ -425,6 +450,75 @@ const Registry = () => {
       clearInterval(requestsInterval);
     };
   }, [fetchOrgans, fetchOrganRequests]);
+
+  // Handle real-time WebSocket notifications
+  useEffect(() => {
+    if (lastMessage) {
+      const { type, data } = lastMessage;
+
+      switch (type) {
+        case 'organ_created': {
+          const organData = data as { organ: { organType: string; bloodType: string }; hospital: string };
+          toast({
+            title: "🆕 New Organ Available",
+            description: `${organData.organ.organType} (${organData.organ.bloodType}) registered at ${organData.hospital}`,
+          });
+          // Refresh organs list
+          fetchOrgans();
+          break;
+        }
+
+        case 'organ_transferred': {
+          const transferData = data as { organ: { organType: string }; fromHospital: string; toHospital: string };
+          toast({
+            title: "🚚 Organ Transfer Update",
+            description: `${transferData.organ.organType} transferred from ${transferData.fromHospital} to ${transferData.toHospital}`,
+          });
+          // Refresh organs list
+          fetchOrgans();
+          break;
+        }
+
+        case 'organ_arrived': {
+          const arrivalData = data as { organ: { organType: string }; toHospital: string };
+          toast({
+            title: "🏥 Organ Arrived",
+            description: `${arrivalData.organ.organType} has arrived at ${arrivalData.toHospital}`,
+          });
+          // Refresh organs list
+          fetchOrgans();
+          break;
+        }
+
+        case 'organ_transplanted': {
+          const transplantData = data as { organ: { organType: string }; recipient: { name: string } };
+          toast({
+            title: "💚 Transplant Completed",
+            description: `${transplantData.organ.organType} successfully transplanted to ${transplantData.recipient.name}`,
+          });
+          // Refresh organs list
+          fetchOrgans();
+          break;
+        }
+
+        case 'request_updated': {
+          const requestData = data as { action: string; hospital: string };
+          const statusText = requestData.action === 'accepted' ? 'accepted' : 'rejected';
+          toast({
+            title: `📋 Request ${statusText.charAt(0).toUpperCase() + statusText.slice(1)}`,
+            description: `Organ request ${requestData.action} by ${requestData.hospital}`,
+          });
+          // Refresh requests and organs
+          fetchOrganRequests();
+          fetchOrgans();
+          break;
+        }
+
+        default:
+          console.log('📡 Unknown WebSocket message type:', type);
+      }
+    }
+  }, [lastMessage, toast, fetchOrgans, fetchOrganRequests]);
 
   // Force dialog refresh when requests change
   useEffect(() => {

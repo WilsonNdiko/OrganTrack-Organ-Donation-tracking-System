@@ -31,12 +31,28 @@ MongoDB ≥ 5.0 (optional, uses JSON file by default)
    - Get testnet account from [Hedera Developer Portal](https://portal.hedera.com/)
    - Add `HEDERA_ACCOUNT_ID` and `HEDERA_PRIVATE_KEY` to `.env`
 
-3. **Install dependencies:**
+3. **Set up Supabase Database (Recommended):**
+   ```bash
+   # Run the interactive setup script
+   node setup-supabase.js
+
+   # Or manually configure in .env:
+   # SUPABASE_URL=https://your-project.supabase.co
+   # SUPABASE_ANON_KEY=your-anon-key
+   ```
+
+4. **Create Database Tables:**
+   - Go to your Supabase project dashboard
+   - Navigate to SQL Editor
+   - Copy and paste the contents of `supabase-schema.sql`
+   - Run the SQL to create tables and indexes
+
+5. **Install dependencies:**
    ```bash
    npm install
    ```
 
-4. **Generate cryptographic keys:**
+6. **Generate cryptographic keys:**
    ```bash
    npm run generate-keys
    ```
@@ -310,31 +326,231 @@ GET /api/audit/logs?organId=1001
 
 ## 🔐 Authentication & Security
 
-### Hospital Authentication
+### Authentication System
+
+OrgFlow implements a dual authentication system supporting both API keys and JWT tokens for hospital access.
+
+#### Login with API Key
 ```http
-POST /api/auth/login
+POST /auth/login
 Content-Type: application/json
 
 {
-  "hospitalId": "HOSP_001",
-  "apiKey": "your-secure-api-key"
+  "hospitalId": "HOSP001",
+  "apiKey": "orgflow-dev-api-key"
 }
 ```
 
+**Response:**
+```json
+{
+  "success": true,
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+  "hospital": {
+    "id": "HOSP001",
+    "name": "Hospital HOSP001",
+    "role": "hospital"
+  }
+}
+```
+
+#### Verify JWT Token
+```http
+GET /auth/verify
+Authorization: Bearer <jwt-token>
+```
+
+#### Authentication Methods
+
+**API Key Authentication:**
+- Include `x-api-key: your-api-key` header
+- Simple and direct for system-to-system communication
+
+**JWT Token Authentication:**
+- Include `Authorization: Bearer <token>` header
+- Supports session management and expiration
+- Tokens expire after 24 hours
+
+### Protected Endpoints
+
+The following endpoints require authentication:
+
+- `POST /createOrgan` - Create new organ NFT
+- `POST /transferOrgan` - Transfer organ to hospital
+- `POST /transplantOrgan` - Record organ transplant
+- `POST /createOrganRequest` - Create transfer request
+- `PUT /updateOrganRequest` - Accept/reject transfer request
+
+### Public Endpoints
+
+These endpoints are accessible without authentication:
+
+- `GET /organs` - View all organs
+- `GET /analytics` - System analytics
+- `GET /organRequests` - View transfer requests
+- `GET /ledger` - Audit ledger
+- `GET /health` - Health check
+- `GET /debug` - Debug information
+
 ### API Security Features
-- **Rate Limiting:** 1000 requests/hour per hospital
-- **Input Validation:** Comprehensive sanitization
-- **CORS:** Configurable cross-origin policies
-- **Helmet.js:** Security headers
-- **Error Handling:** Structured error responses
+
+- **Authentication Required:** Sensitive operations protected
+- **Token Expiration:** JWT tokens expire after 24 hours
+- **Input Validation:** Comprehensive request sanitization
+- **CORS Protection:** Configurable cross-origin policies
+- **Error Handling:** Structured error responses with appropriate HTTP codes
+
+## 🔌 Real-Time WebSocket Notifications
+
+OrgFlow includes real-time WebSocket notifications for instant updates across all connected hospitals and systems.
+
+### WebSocket Connection
+
+**Connection URL:** `ws://localhost:3002` (or your server URL)
+
+**Authentication:**
+```javascript
+socket.emit('authenticate', {
+  hospitalId: 'HOSP001',
+  token: 'your-jwt-token'
+});
+```
+
+### Available Events
+
+#### System Events
+- **`authenticated`** - Authentication successful
+- **`authentication_failed`** - Authentication failed
+- **`system_status`** - Current system statistics
+- **`pong`** - Response to ping
+
+#### Organ Events
+- **`organ_created`** - New organ registered
+- **`organ_transferred`** - Organ transferred between hospitals
+- **`organ_arrived`** - Organ arrived at destination
+- **`organ_transplanted`** - Organ successfully transplanted
+
+#### Request Events
+- **`request_updated`** - Transfer request accepted/rejected
+
+### Event Data Structures
+
+#### Organ Created
+```json
+{
+  "organ": {
+    "tokenId": 1001,
+    "organType": "Heart",
+    "bloodType": "A+",
+    "status": "Donated",
+    "hospital": "St. Mary's Hospital",
+    "createdAt": "2025-01-15T10:30:00Z"
+  },
+  "hospital": "Hospital HOSP001",
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+```
+
+#### Organ Transferred
+```json
+{
+  "organ": {
+    "tokenId": 1001,
+    "organType": "Heart",
+    "bloodType": "A+",
+    "status": "Transferred",
+    "hospital": "City General Hospital"
+  },
+  "fromHospital": "St. Mary's Hospital",
+  "toHospital": "City General Hospital",
+  "action": "transferred",
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+```
+
+#### Organ Transplanted
+```json
+{
+  "organ": {
+    "tokenId": 1001,
+    "organType": "Heart",
+    "bloodType": "A+",
+    "status": "Transplanted",
+    "hospital": "City General Hospital"
+  },
+  "recipient": {
+    "name": "Jane Smith",
+    "age": 32,
+    "bloodType": "A+"
+  },
+  "surgeon": "Dr. Emily Chen",
+  "transplantDate": "2025-01-15T14:00:00Z",
+  "hospital": "Hospital HOSP001",
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+```
+
+#### Request Updated
+```json
+{
+  "request": {
+    "requestId": "REQ-123456",
+    "organId": 1001,
+    "requestingHospital": "City General Hospital",
+    "owningHospital": "St. Mary's Hospital",
+    "status": "accepted",
+    "updatedAt": "2025-01-15T10:30:00Z"
+  },
+  "action": "accepted",
+  "hospital": "Hospital HOSP001",
+  "timestamp": "2025-01-15T10:30:00Z"
+}
+```
+
+### Client Implementation Example
+
+```javascript
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:3002');
+
+// Authenticate
+socket.emit('authenticate', {
+  hospitalId: 'HOSP001',
+  token: localStorage.getItem('authToken')
+});
+
+// Listen for events
+socket.on('organ_created', (data) => {
+  console.log('New organ available:', data.organ);
+  updateOrganList(data.organ);
+});
+
+socket.on('organ_transferred', (data) => {
+  console.log('Organ transferred:', data);
+  updateOrganStatus(data.organ.tokenId, data.action);
+});
+
+socket.on('system_status', (data) => {
+  updateDashboardStats(data);
+});
+```
+
+### Connection Management
+
+- **Auto-reconnection:** Built-in reconnection on connection loss
+- **Room-based messaging:** Hospitals receive targeted notifications
+- **Connection health:** Ping-pong mechanism for monitoring
+- **Authentication required:** All sensitive events require valid JWT
 
 ### Audit Trail
-All organ operations are logged with:
-- Timestamp
-- Hospital ID
-- User action
-- Blockchain transaction hash
-- IP address and user agent
+
+All authenticated operations are logged with:
+- Timestamp (ISO 8601)
+- Hospital ID and name
+- Operation type and details
+- Blockchain transaction hash (when applicable)
+- WebSocket connection tracking
 
 ## 🔧 Development Scripts
 
@@ -381,19 +597,92 @@ backend/
 
 ## 🧪 Testing
 
+OrgFlow includes a comprehensive test suite covering all critical system functionality.
+
+### Test Suite Overview
+
+The test suite includes **7 major test categories**:
+
+1. **🏥 Health Tests** - Server connectivity and basic functionality
+2. **🔐 Authentication Tests** - API key and JWT token validation
+3. **🫀 Organ Management Tests** - Complete organ lifecycle (create → transfer → transplant)
+4. **🗄️ Database Tests** - Data persistence and ledger functionality
+5. **🔌 WebSocket Tests** - Real-time notification system
+6. **🚨 Error Handling Tests** - Input validation and error responses
+7. **⚡ Performance Tests** - Response times and concurrent load
+
+### Running Tests
+
 ```bash
-# Run all tests
+# Run complete test suite
 npm test
 
-# Run with coverage
-npm run test:coverage
+# Run with verbose output
+npm run test:verbose
 
-# API integration tests
-npm run test:integration
+# Skip WebSocket tests (for CI/CD)
+npm run test:skip-websocket
 
-# Load testing
-npm run test:load
+# Run individual test modules
+npm run test:health          # Health checks only
+npm run test:websocket       # WebSocket functionality
+npm run test:hts            # HTS NFT operations
+npm run test:server         # Basic server functionality
 ```
+
+### Test Configuration
+
+**Environment Variables:**
+```bash
+# Enable verbose logging
+VERBOSE=true
+
+# Skip WebSocket tests (useful for CI/CD)
+SKIP_WEBSOCKET=true
+
+# Custom server URL (for testing against different environments)
+SERVER_URL=http://localhost:3002
+```
+
+### Test Results
+
+The test suite provides detailed reporting:
+
+```
+🚀 Starting OrgFlow Comprehensive Test Suite
+
+🏥 Running Health Tests
+------------------------------
+✅ PASSED: Server Health Check
+✅ PASSED: Debug Endpoint Access
+✅ PASSED: CORS Headers
+
+📊 Test Suite Results
+Total Tests: 25
+Passed: 23
+Failed: 2
+Skipped: 0
+Success Rate: 92.0%
+Duration: 45.67s
+```
+
+### Test Coverage
+
+**✅ Fully Tested Components:**
+- HTS NFT minting with metadata optimization
+- Authentication and authorization flows
+- Complete organ lifecycle management
+- Real-time WebSocket notifications
+- Database operations (Supabase + JSON fallback)
+- API endpoint validation
+- Error handling and edge cases
+- Performance and load testing
+
+**🔧 Test Utilities:**
+- Automated test data cleanup
+- Parallel test execution
+- Comprehensive error reporting
+- CI/CD integration ready
 
 ## 📊 Monitoring
 

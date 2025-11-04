@@ -1,1 +1,40 @@
 node_modules
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Test files
+backend/test-*.js
+backend/test-suite.js
+backend/setup-supabase.js
+backend/create-tables.js
+
+# Build artifacts and cache
+backend/artifacts/
+backend/cache/
+backend/*.log
+
+# Database files
+backend/organs.json
+backend/requests.json
+backend/ledger.json
+
+# Frontend build
+organflow-hash-care-main/dist/
+organflow-hash-care-main/build/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
