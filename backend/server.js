@@ -617,7 +617,7 @@ app.post('/createOrgan', authenticateHospital, async (req, res) => {
 
       // Convert to compact JSON and then to Buffer
       const metadataString = JSON.stringify(optimizedMetadata);
-      const metadata = Buffer.from(metadataString);
+      let metadata = Buffer.from(metadataString);
 
       console.log(`📊 Metadata size: ${metadata.length} bytes (Hedera limit: 100 bytes)`);
 
