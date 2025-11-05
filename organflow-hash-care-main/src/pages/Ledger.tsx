@@ -83,7 +83,7 @@ const Ledger = () => {
             </h1>
           </div>
           <p className="text-muted-foreground">
-            Public Hedera Hashgraph blockchain records - Every transaction is verified and immutable
+            Public Hedera Hashgraph records - Every transaction is verified and immutable
           </p>
         </div>
 
@@ -93,7 +93,7 @@ const Ledger = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2 font-display">
               <Shield className="w-5 h-5 text-primary" />
-              Verified Blockchain Transactions
+              Verified Hashgraph Transactions
             </CardTitle>
           </CardHeader>
           <CardContent>
