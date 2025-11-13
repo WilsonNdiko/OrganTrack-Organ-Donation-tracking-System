@@ -428,14 +428,14 @@ We welcome contributions to make OrgFlow even better at saving lives!
 - Input validation and sanitization
 
 ---
-
+<!--
 ## 📜 **License**
 
 This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) file for details.
 
 ---
 
-### **For Developers & Technologists**
+ ### **For Developers & Technologists**
 - **💻 GitHub Issues:** Bug reports and technical support
 - **📖 API Documentation:** [Technical Docs](docs/api.md)
 - **🔧 SDK Guides:** [Integration Guides](docs/integration.md)
@@ -445,7 +445,7 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 - **📋 Compliance Info:** [Regulatory Documents](docs/compliance.md)
 - **📊 Audit Reports:** [Security Audits](docs/security-audits.md)
 
----
+--- -->
 
 ## 🙏 **Mission Statement**
 
