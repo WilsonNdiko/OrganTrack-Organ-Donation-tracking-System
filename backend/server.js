@@ -405,6 +405,83 @@ async function updateOrganRequestInSupabase(requestId, updates) {
   }
 }
 
+// Ledger database functions
+async function loadLedgerFromSupabase() {
+  try {
+    const { data, error } = await supabase
+      .from('ledger_events')
+      .select('*')
+      .order('timestamp', { ascending: false });
+
+    if (error) throw error;
+
+    // Map Supabase field names to frontend expected field names
+    ledger = (data || []).map(event => ({
+      id: event.event_id,
+      type: event.event_type,
+      organId: event.organ_id,
+      organType: event.organ_type,
+      bloodType: event.blood_type,
+      hospital: event.hospital,
+      donor: event.donor,
+      recipient: event.recipient,
+      surgeon: event.surgeon,
+      requesterAddress: event.requester_address,
+      requestId: event.request_id,
+      status: event.status,
+      requestingHospital: event.requesting_hospital,
+      owningHospital: event.owning_hospital,
+      txHash: event.tx_hash,
+      nftTokenId: event.nft_token_id,
+      receiptNumber: event.receipt_number,
+      transplantDate: event.transplant_date,
+      timestamp: event.timestamp,
+      details: event.details
+    }));
+
+    console.log(`🗄️  Loaded ${ledger.length} ledger events from Supabase`);
+    return ledger;
+  } catch (error) {
+    console.error('❌ Failed to load ledger from Supabase:', error.message);
+    return [];
+  }
+}
+
+async function saveLedgerEventToSupabase(event) {
+  try {
+    const { error } = await supabase
+      .from('ledger_events')
+      .insert([{
+        event_id: event.id,
+        event_type: event.type,
+        organ_id: event.organId,
+        organ_type: event.organType,
+        blood_type: event.bloodType,
+        hospital: event.hospital,
+        donor: event.donor,
+        recipient: event.recipient,
+        surgeon: event.surgeon,
+        requester_address: event.requesterAddress,
+        request_id: event.requestId,
+        status: event.status,
+        requesting_hospital: event.requestingHospital,
+        owning_hospital: event.owningHospital,
+        tx_hash: event.txHash,
+        nft_token_id: event.nftTokenId,
+        receipt_number: event.receiptNumber,
+        transplant_date: event.transplantDate ? new Date(event.transplantDate).toISOString().split('T')[0] : null,
+        timestamp: event.timestamp,
+        details: event.details,
+        created_at: new Date().toISOString()
+      }]);
+
+    if (error) throw error;
+    console.log(`📝 Saved ledger event ${event.id} to Supabase`);
+  } catch (error) {
+    console.error('❌ Failed to save ledger event to Supabase:', error.message);
+  }
+}
+
 function saveOrgansToFile() {
   try {
     const data = JSON.stringify({
@@ -414,8 +491,25 @@ function saveOrgansToFile() {
     }, null, 2);
     fs.writeFileSync(ORGANS_FILE, data);
     console.log(`💾 Saved ${organs.length} organs to persistent storage`);
+
+    // Immediate verification after save
+    try {
+      const verifyData = JSON.parse(fs.readFileSync(ORGANS_FILE, 'utf8'));
+      const verifyOrgs = verifyData.organs || [];
+      if (verifyOrgs.length !== organs.length) {
+        console.error('❌ VERIFICATION FAILED: Saved organs count mismatch!', {
+          expected: organs.length,
+          saved: verifyOrgs.length
+        });
+      } else {
+        console.log('✅ VERIFICATION PASSED: Organ data saved correctly');
+      }
+    } catch (verifyError) {
+      console.error('❌ VERIFICATION ERROR: Could not verify saved data:', verifyError.message);
+    }
   } catch (error) {
     console.error('❌ Failed to save organs to file:', error.message);
+    console.error('Full error:', error);
   }
 }
 
@@ -484,7 +578,7 @@ function saveLedgerToFile() {
   }
 }
 
-function recordLedgerEvent(event) {
+async function recordLedgerEvent(event) {
   const ledgerEvent = {
     id: `LEDGER-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     ...event,
@@ -493,19 +587,30 @@ function recordLedgerEvent(event) {
   };
 
   ledger.push(ledgerEvent);
-  saveLedgerToFile();
+
+  // Save to Supabase if available, otherwise save to file (maintain dual storage)
+  if (supabase) {
+    await saveLedgerEventToSupabase(ledgerEvent);
+  } else {
+    saveLedgerToFile();
+  }
+
   console.log(`📋 Recorded ledger event: ${event.type} for organ ${event.organId || 'unknown'}`);
 }
 
 // Initialize data
 if (supabase) {
   loadOrgansFromSupabase();
+  loadLedgerFromSupabase(); // Load ledger from Supabase first
+  getOrganRequestsFromSupabase().then(data => {
+    requests = data;
+    console.log(`📋 Loaded ${requests.length} organ requests from Supabase`);
+  });
 } else {
   loadOrgansFromFile();
+  loadLedgerFromFile(); // Load ledger from file
+  loadRequestsFromFile(); // Load requests from file
 }
-
-loadLedgerFromFile(); // Load ledger data
-loadRequestsFromFile(); // Load requests data
 
 // Mock implementation (only if no data exists)
 async function initializeMockData() {
@@ -994,6 +1099,22 @@ app.post('/transferOrgan', authenticateHospital, async (req, res) => {
 app.post('/transplantOrgan', authenticateHospital, async (req, res) => {
   try {
     const { tokenId, recipient, recipientName, recipientAge, recipientBloodType, recipientHospital, receiptNumber, transplantDate, surgeon, notes } = req.body;
+
+    console.log('\n🩺 DEBUG: /transplantOrgan endpoint called with body:', {
+      tokenId,
+      recipient: recipient?.substring(0, 20) + '...', // Truncate for logs
+      recipientName,
+      recipientHospital,
+      surgeon
+    });
+
+    console.log('👀 DEBUG: Transplant validation - looking for organ:', tokenId);
+    const organ = organs.find(o => o.tokenId === tokenId);
+    console.log('📋 DEBUG: Found organ:', {
+      exists: !!organ,
+      status: organ?.status,
+      organType: organ?.organType
+    });
     if (organNFT) {
       const tx = await organNFT.transplant(tokenId, recipient);
       await tx.wait();
@@ -1007,47 +1128,32 @@ app.post('/transplantOrgan', authenticateHospital, async (req, res) => {
         return res.status(400).json({ error: 'Invalid transplant - organ must be available (not in transit)' });
       }
 
-      // Create transplant metadata
+      // Create ultra-compact transplant metadata (strictly under 100 bytes)
       const transplantMetadata = {
-        action: 'transplant',
-        organId: tokenId,
-        organType: organ.organType,
-        bloodType: organ.bloodType,
-        recipient: recipientName,
-        recipientBloodType: recipientBloodType,
-        hospital: recipientHospital,
-        surgeon: surgeon,
-        transplantDate: transplantDate || new Date().toISOString(),
-        timestamp: new Date().toISOString(),
-        txType: 'organ_transplant'
+        a: 't',        // action (transplant)
+        i: tokenId,    // organ ID
+        t: organ.organType.substring(0, 3), // organ type (3 chars max)
+        b: organ.bloodType, // blood type (should be ~2-7 chars)
+        r: recipientName?.substring(0, 6) || 'Unk', // recipient (6 chars max)
+        h: recipientHospital?.substring(0, 4) || 'Unk', // hospital (4 chars max)
+        s: surgeon?.substring(0, 4) || 'Unk', // surgeon (4 chars max)
+        dt: (transplantDate || new Date().toISOString()).split('T')[0] // just date
       };
 
       // Convert to compact JSON and then to Buffer
       const metadataString = JSON.stringify(transplantMetadata);
-      let metadata = Buffer.from(metadataString);
+      const metadata = Buffer.from(metadataString);
 
       console.log(`📊 Transplant metadata size: ${metadata.length} bytes (Hedera limit: 100 bytes)`);
 
+      // Hard fail if metadata is still too large - explicitly fall back to mock mode
       if (metadata.length > 100) {
-        console.warn('⚠️  Transplant metadata too large, truncating...');
-        // Further optimize if needed
-        const compactMetadata = {
-          a: 'transplant',
-          id: tokenId,
-          t: organ.organType,
-          b: organ.bloodType,
-          r: recipientName?.substring(0, 8) || 'Unknown',
-          rb: recipientBloodType,
-          h: recipientHospital?.substring(0, 8) || 'Unknown',
-          s: surgeon?.substring(0, 8) || 'Unknown',
-          td: (transplantDate || new Date().toISOString()).split('T')[0],
-          ts: new Date().toISOString().split('T')[0],
-          tx: 'transplant'
-        };
-        const compactString = JSON.stringify(compactMetadata);
-        metadata = Buffer.from(compactString);
-        console.log(`📊 Compacted transplant metadata size: ${metadata.length} bytes`);
+        console.error(`❌ CRITICAL: Transplant metadata still ${metadata.length} bytes (>100 limit). Content: ${metadataString}. FORCING FALLBACK TO MOCK MODE.`);
+        // Explicitly throw to force fallback to mock mode - do not attempt HTS minting
+        throw new Error(`Metadata size ${metadata.length} bytes exceeds Hedera 100-byte limit. Falling back to mock mode.`);
       }
+
+      console.log(`✅ Transplant metadata size: ${metadata.length} bytes - proceeding with HTS minting`);
 
       // Import TokenMintTransaction
       const { TokenMintTransaction } = await import('@hashgraph/sdk');
@@ -1090,6 +1196,11 @@ app.post('/transplantOrgan', authenticateHospital, async (req, res) => {
         surgeon: surgeon,
         notes: notes
       };
+      console.log('✨ DEBUG: Organ status updated to Transplanted:', {
+        organId: tokenId,
+        status: organ.status,
+        recipient: recipientName
+      });
 
       // Update in Supabase if available, otherwise save to file
       if (supabase) {
@@ -1691,6 +1802,7 @@ app.delete('/clearOrgans', async (req, res) => {
     organs = [];
     nextTokenId = 0;
     requests = []; // Clear requests array
+    ledger = []; // Clear ledger events
 
     // Clear file storage
     if (fs.existsSync(ORGANS_FILE)) {
@@ -1699,21 +1811,27 @@ app.delete('/clearOrgans', async (req, res) => {
     if (fs.existsSync(REQUESTS_FILE)) {
       fs.unlinkSync(REQUESTS_FILE);
     }
+    if (fs.existsSync(LEDGER_FILE)) {
+      fs.unlinkSync(LEDGER_FILE);
+    }
 
     // Clear Supabase if available
     if (supabase) {
       await supabase.from('organs').delete().neq('token_id', -1); // Delete all records
       await supabase.from('organ_requests').delete().neq('id', -1); // Also clear requests
+      await supabase.from('ledger_events').delete().neq('id', -1); // Also clear ledger events
     }
 
-    console.log('🗑️  Cleared all existing organs and requests - database is now empty');
+    console.log('🗑️  Cleared all existing organs, requests, and ledger events - database is now empty');
     res.json({
       success: true,
-      message: 'All organs and requests cleared - database is now completely empty',
-      organsCount: 0
+      message: 'All organs, requests, and ledger events cleared - database is now completely empty',
+      organsCount: 0,
+      ledgerCount: 0,
+      requestsCount: 0
     });
   } catch (error) {
-    console.error('❌ Failed to clear organs:', error);
+    console.error('❌ Failed to clear data:', error);
     res.status(500).json({ error: error.message });
   }
 });

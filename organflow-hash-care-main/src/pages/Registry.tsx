@@ -215,23 +215,44 @@ const Registry = () => {
       return;
     }
 
+    console.log('🩺 DEBUG: Starting transplant for organ:', selectedOrgan.tokenId, selectedOrgan.organType);
+
+    const transplantPayload = {
+      tokenId: selectedOrgan.tokenId,
+      recipient: `0x${Date.now().toString(16).padEnd(40, '0')}`, // Generate recipient address
+      recipientName: transplantData.recipientName,
+      recipientAge: parseInt(transplantData.recipientAge) || undefined,
+      recipientBloodType: transplantData.recipientBloodType,
+      recipientHospital: transplantData.recipientHospital,
+      surgeon: transplantData.surgeon,
+      notes: transplantData.notes,
+    };
+
+    console.log('📤 DEBUG: API Call - transplantOrgan payload:', transplantPayload);
+
     try {
-      await api.transplantOrgan({
-        tokenId: selectedOrgan.tokenId,
-        recipient: `0x${Date.now().toString(16).padEnd(40, '0')}`, // Generate recipient address
-        recipientName: transplantData.recipientName,
-        recipientAge: parseInt(transplantData.recipientAge) || undefined,
-        recipientBloodType: transplantData.recipientBloodType,
-        recipientHospital: transplantData.recipientHospital,
-        surgeon: transplantData.surgeon,
-        notes: transplantData.notes,
-      });
+      const response = await api.transplantOrgan(transplantPayload);
+      console.log('📥 DEBUG: API Response from transplantOrgan:', response);
+      console.log('🔗 DEBUG: API Response success:', response?.success, 'has response?', !!response);
 
-      // Mark that we made a change to prevent auto-refresh
-      localStorage.setItem('lastOrganChange', Date.now().toString());
+      // Check for API response structure issues or success flag
+      if (!response || (response.success !== true && response.success !== undefined)) {
+        console.error('❌ DEBUG: Transplant API returned failure:', response);
+        toast({
+          title: "Transplant Failed",
+          description: response?.message || "API returned unsuccessful response or no response received.",
+          variant: "destructive",
+        });
+        return;
+      }
 
-      // Update local state and refresh from backend
-      setOrgans(organs.map(organ =>
+      console.log('✅ DEBUG: Transplant API call succeeded, response:', response);
+
+      // Mark that we made a change to prevent auto-refresh (extend to 15s after transplant)
+      localStorage.setItem('lastOrganChange', (Date.now() + 15000).toString());
+
+      // Update local state to "Transplanted"
+      setOrgans(prevOrgans => prevOrgans.map(organ =>
         organ.tokenId === selectedOrgan.tokenId
           ? {
               ...organ,
@@ -240,6 +261,8 @@ const Registry = () => {
             }
           : organ
       ));
+
+      console.log('🔄 DEBUG: Frontend local state updated to Transplanted');
 
       toast({
         title: "💚 Transplant Successful",
@@ -259,13 +282,17 @@ const Registry = () => {
         notes: "",
       });
 
+      console.log('⏱️ DEBUG: Scheduling fetchOrgans in 1 second...');
       // Refresh data from backend after a short delay
-      setTimeout(() => fetchOrgans(), 1000);
+      setTimeout(() => {
+        console.log('🔄 DEBUG: Calling fetchOrgans after transplant...');
+        fetchOrgans();
+      }, 1000);
     } catch (error) {
-      console.error("Error transplanting organ:", error);
+      console.error("❌ DEBUG: Exception during transplant:", error);
       toast({
         title: "Transplant Failed",
-        description: "Failed to complete transplant.",
+        description: "Failed to complete transplant. Check console for details.",
         variant: "destructive",
       });
     }
